@@ -19,6 +19,19 @@
     <junit.version>5.11.3</junit.version>
   </properties>
 
+  <!-- One Jackson version everywhere: Flink's test utilities bring an older jackson-core -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
     <!-- Provided by the Flink cluster at run time -->
     <dependency>
@@ -48,7 +61,6 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>${jackson.version}</version>
     </dependency>
 
     <!-- Tests -->
