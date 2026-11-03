@@ -122,18 +122,19 @@ def consume(hub: Hub, bootstrap: str, events_topic: str, state_topic: str, stop:
     states.subscribe([state_topic])
     while not stop.is_set():
         for c, is_state in ((events, False), (states, True)):
-            msg = c.poll(0.1)
-            if msg is None or msg.error():
-                continue
-            data = json.loads(msg.value())
-            mid = int(data["match_id"])
-            if mid not in metas:
-                metas.add(mid)
-                hub.add_threadsafe(mid, {"kind": "meta", "match_id": mid, "home": data["home"], "away": data["away"]})
-            if is_state:
-                hub.add_threadsafe(mid, web_snap(data))
-            elif data.get("type") != "End":
-                hub.add_threadsafe(mid, web_event(data))
+            for msg in c.consume(500, 0.05):
+                if msg.error():
+                    continue
+                data = json.loads(msg.value())
+                mid = int(data["match_id"])
+                if mid not in metas:
+                    metas.add(mid)
+                    meta = {"kind": "meta", "match_id": mid, "home": data["home"], "away": data["away"]}
+                    hub.add_threadsafe(mid, meta)
+                if is_state:
+                    hub.add_threadsafe(mid, web_snap(data))
+                elif data.get("type") != "End":
+                    hub.add_threadsafe(mid, web_event(data))
     events.close()
     states.close()
 
