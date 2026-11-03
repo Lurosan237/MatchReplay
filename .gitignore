@@ -1,0 +1,12 @@
+# Downloaded or generated data: rebuilt with `python -m matchreplay.ingest`
+data/raw/
+data/matches/
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.idea/
+.vscode/
+.DS_Store

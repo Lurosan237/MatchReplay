@@ -1,0 +1,19 @@
+[project]
+name = "matchreplay"
+version = "0.1.0"
+description = "Replay real football matches as live streams: live win probability, what-if simulation, and a 3D view."
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
