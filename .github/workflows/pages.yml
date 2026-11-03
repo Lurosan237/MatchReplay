@@ -34,6 +34,12 @@ jobs:
           restore-keys: statsbomb-events-
       - run: python -m matchreplay.ingest --no-360
       - run: python -m matchreplay.web_export
+      - name: World Cup 2022 tracking for the 3D view (built by the Tracking workflow)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release download tracking-data -p tracking.tar; then tar -xf tracking.tar -C site && rm tracking.tar
+          else echo "No tracking published yet: the site goes out without the 3D view"; fi
       - run: rm -rf site/test site/package.json
       - uses: actions/upload-pages-artifact@v3
         with:

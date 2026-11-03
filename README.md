@@ -4,8 +4,9 @@ Real football matches replayed as live data streams: live win probability, "what
 of any moment, and a 3D view of the match. Showcase: the Africa Cup of Nations 2023, including
 Cameroon's four matches.
 
-> **Status: work in progress.** Layers 1 to 4 are done: the data, the streaming pipeline, the 2D
-> replay in the browser, and live win probability with "what if". See the roadmap below.
+> **Status: work in progress.** Layers 1 to 5 are done: the data, the streaming pipeline, the 2D
+> replay in the browser, live win probability with "what if", and the World Cup 2022 in 3D from
+> real player tracking. See the roadmap below.
 
 ## Data
 
@@ -109,6 +110,27 @@ changed score (the dashed win-probability lines: how the odds would have read), 
 endings are simulated from that moment with the same goal rates: the chances of each result, the
 most likely final scores, and one simulated story of how it could have gone.
 
+## The World Cup 2022 in 3D, from real tracking
+
+All 64 matches of the 2022 World Cup play in 3D in the browser (`site/play3d.html`): every player
+and the ball where they really were, **every frame, 29.97 times a second**, from the optical
+tracking data PFF FC released for free. Nothing is animated or guessed; positions are only
+interpolated between frames 33 ms apart, for smooth playback. Four cameras (broadcast, tactical,
+following the ball, free orbit), slow motion, player names, a ball trail. The score, clock, feed
+and win probability come from the event data, so the 3D view and the 2D replay tell the same match.
+
+How it gets there:
+- `pff_download` fetches the data from PFF's shared folder; `tracking` turns each match's 1.4 GB
+  of JSON into arrays (positions in centimetres per shirt number, every frame).
+- `tracking_web` finds the StatsBomb match each PFF game is (same day, closest team names), turns
+  every frame so the home team attacks to the right as in the 2D view, and puts both providers on
+  one clock: per period, the median gap between the shots both recorded (under a second, on the
+  matches checked). It then cuts the match into one-minute chunks that the page streams while it
+  plays, delta-encoded and gzipped: **a whole match at full frame rate is about 2.7 MB**.
+- The **Tracking** workflow does all of it on GitHub in 8 parallel jobs and publishes the result on
+  the `tracking-data` release, which the website build unpacks. Nothing from PFF is committed; the
+  workflow needs the folder id from PFF's welcome email as the `PFF_FOLDER` secret.
+
 ## Roadmap
 
 - [x] Layer 1: ingest 12 competitions, typed tables, data report
@@ -118,7 +140,7 @@ most likely final scores, and one simulated story of how it could have gone.
       WebSockets
 - [x] Layer 4: live win probability (Python, Flink and browser, tested to agree) and "what if"
       simulation
-- [ ] Layer 5: 3D view with real player movement (World Cup 2022 tracking data)
+- [x] Layer 5: the World Cup 2022 in 3D, every frame of the real tracking data
 - [ ] Layer 6: reconstructed movement for the other competitions
 - [ ] Layer 7: polish, and Cameroon's matches as the story
 
@@ -166,3 +188,5 @@ python -m matchreplay.replay --match 3922242                 # watch it arrive
 ## Credits
 
 Data: Hudl StatsBomb open data. Free to use with credit to Hudl StatsBomb as the source.
+World Cup 2022 tracking: [PFF FC](https://www.blog.fc.pff.com/blog/pff-fc-release-2022-world-cup-data),
+released for free; request it from them to rebuild the 3D view.

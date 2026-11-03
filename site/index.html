@@ -15,7 +15,7 @@
     </header>
 
     <section class="hero">
-      <div class="badges"><span class="badge replay">Replay of real data</span><span class="badge" id="count">558 matches</span><span class="badge">12 competitions</span></div>
+      <div class="badges"><span class="badge replay">Replay of real data</span><span class="badge" id="count">558 matches</span><span class="badge">12 competitions</span><span class="badge replay">World Cup 2022 in 3D</span></div>
       <h1>Real matches, <em>played again</em> as if they were live.</h1>
       <p>Pick a match: every pass, shot and card comes back in order, and the live numbers (score, expected
         goals, momentum) update the way a streaming pipeline computes them during a real broadcast.</p>
@@ -34,12 +34,13 @@
       the World Cups. <b>The pipeline</b> (Java, Apache Flink, a Kafka-compatible broker) receives each match the way a
       real feed would deliver it, with events late, out of order or twice, and keeps the live numbers right anyway;
       it is tested against a simple reference, including with a server killed in the middle of a match. <b>This page</b>
-      replays the same numbers in your browser, no server needed. Coming next: live win probability, "what if this
-      shot had gone in?", and the World Cup 2022 in 3D from real player tracking.
+      replays the same numbers in your browser, no server needed. <b>The World Cup 2022</b> (matches marked 3D) also
+      plays in 3D from real optical tracking: every player and the ball, 30 times a second.
     </p>
 
     <footer>
-      Data: <a href="https://github.com/statsbomb/open-data">Hudl StatsBomb open data</a>. A student portfolio project,
+      Data: <a href="https://github.com/statsbomb/open-data">Hudl StatsBomb open data</a>; World Cup 2022 tracking:
+      <a href="https://www.blog.fc.pff.com/blog/pff-fc-release-2022-world-cup-data">PFF FC</a>. A student portfolio project,
       not affiliated with any competition, club or data provider.
     </footer>
   </div>

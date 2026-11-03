@@ -33,6 +33,9 @@ async function load() {
   }
   const m = match.meta;
   document.title = `${m.home} v ${m.away} · MatchReplay`;
+  fetch(`tracking/${id}/meta.json`, { method: "HEAD" }).then((r) => {
+    if (r.ok) { $("to3d").href = `play3d.html?id=${id}`; $("to3d").hidden = false; }
+  }).catch(() => {});
   $("home").textContent = m.home;
   $("away").textContent = m.away;
   $("subtitle").textContent = [m.competition_name, m.stage, m.date, m.stadium].filter(Boolean).join(" · ");

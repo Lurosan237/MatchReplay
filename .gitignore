@@ -13,3 +13,4 @@ __pycache__/
 pipeline/target/
 data/tracking/
 site/data/
+site/tracking/

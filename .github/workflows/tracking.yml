@@ -1,0 +1,84 @@
+name: Tracking
+
+# World Cup 2022 player tracking for the 3D view, every frame (29.97 per second).
+# Downloads PFF FC's data from their shared folder (secret PFF_FOLDER), converts it in 8 parallel
+# jobs, and publishes the result as one archive on the "tracking-data" release, which the
+# website build unpacks. Nothing from PFF goes into the repository.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/tracking.yml", "src/matchreplay/tracking.py", "src/matchreplay/tracking_web.py"]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: tracking
+  cancel-in-progress: true
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt && pip install -e .
+      - uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: statsbomb-wc2022-${{ hashFiles('src/matchreplay/ingest.py') }}
+      - run: python -m matchreplay.ingest --only wc2022 --no-360
+      - name: Download this shard from PFF
+        env:
+          PFF_FOLDER: ${{ secrets.PFF_FOLDER }}
+        run: |
+          if [ -z "$PFF_FOLDER" ]; then echo "::error::Add the PFF_FOLDER secret (Settings > Secrets and variables > Actions)"; exit 1; fi
+          python -m matchreplay.pff_download "$PFF_FOLDER" --shard ${{ matrix.shard }}/8
+      - run: python -m matchreplay.tracking --all --delete-raw
+      - run: python -m matchreplay.tracking_web --out tracking-out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tracking-${{ matrix.shard }}
+          path: tracking-out
+          retention-days: 3
+
+  publish:
+    needs: convert
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy pandas pyarrow requests && pip install -e . --no-deps
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tracking-*
+          path: shards
+      - name: Merge the shards
+        run: |
+          mkdir -p tracking
+          for d in shards/*/; do cp -r "$d"/. tracking/; done
+          python -m matchreplay.tracking_web --out tracking --index-only
+          echo "$(ls tracking | grep -c '^[0-9]') matches, $(du -sh tracking | cut -f1)"
+          tar -cf tracking.tar tracking
+      - name: Publish on the tracking-data release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view tracking-data >/dev/null 2>&1 || gh release create tracking-data --title "World Cup 2022 tracking for the 3D view" \
+            --notes "Built by the Tracking workflow from PFF FC's free World Cup 2022 tracking data (https://www.blog.fc.pff.com/blog/pff-fc-release-2022-world-cup-data). Read by the website build."
+          gh release upload tracking-data tracking.tar --clobber
+      - name: Rebuild the website
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml

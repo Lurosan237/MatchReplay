@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Match in 3D</title>
+  <meta name="description" content="A World Cup 2022 match replayed in 3D from real player tracking, every frame.">
+  <link rel="stylesheet" href="css/site.css">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="./"><span class="dot"></span>MatchReplay</a>
+      <nav><a href="./">All matches</a><a id="to2d" href="match.html">2D view</a><a href="https://github.com/Lurosan237/MatchReplay">Code</a></nav>
+    </header>
+
+    <section class="scoreboard" aria-live="polite">
+      <div class="team home"><span class="swatch" id="sw-home"></span><span id="home">Home</span></div>
+      <div class="score">
+        <div class="digits" id="score">0 - 0</div>
+        <div class="clock"><span class="live">●</span> <span id="clock">00:00</span> · <span id="period">1st half</span></div>
+        <div class="pens" id="pens"></div>
+      </div>
+      <div class="team away"><span id="away">Away</span><span class="swatch" id="sw-away"></span></div>
+    </section>
+    <div class="subtitle" id="subtitle"></div>
+    <div class="winbar" id="winbar" aria-label="Win probability">
+      <div class="seg home" id="wb-home"></div><div class="seg draw" id="wb-draw"></div><div class="seg away" id="wb-away"></div>
+    </div>
+    <div class="winlabels"><span id="wl-home"></span><span id="wl-draw"></span><span id="wl-away"></span></div>
+
+    <div class="controls">
+      <button class="btn primary" id="play">▶ Play</button>
+      <div class="speeds" id="speeds" role="group" aria-label="Speed">
+        <button data-speed="0.25">¼×</button><button data-speed="1" aria-pressed="true">1×</button><button data-speed="2">2×</button><button data-speed="5">5×</button><button data-speed="20">20×</button>
+      </div>
+      <div class="speeds" id="cams" role="group" aria-label="Camera">
+        <button data-cam="broadcast" aria-pressed="true">Broadcast</button><button data-cam="tactical">Tactical</button><button data-cam="follow">Ball</button><button data-cam="free">Free</button>
+      </div>
+      <button class="btn" id="next-goal">Next goal ⏭</button>
+      <span class="spacer"></span>
+      <label><input type="checkbox" id="show-names"> Names</label>
+      <label><input type="checkbox" id="show-trails" checked> Ball trail</label>
+    </div>
+
+    <div class="stage3d">
+      <canvas id="scene" aria-label="The match in 3D"></canvas>
+      <div class="banner" id="banner"></div>
+      <div class="loading" id="loading">Loading tracking…</div>
+      <div class="badge-src"><span class="badge replay">Real tracking · every frame</span></div>
+    </div>
+
+    <div class="timeline" id="timeline" title="Click or drag to jump">
+      <canvas id="timeline-canvas"></canvas>
+    </div>
+
+    <p class="how">
+      <b>What you are watching.</b> Every player and the ball, where they really were, 30 times a second: the
+      World Cup 2022 optical tracking data released for free by <a href="https://www.blog.fc.pff.com/blog/pff-fc-release-2022-world-cup-data">PFF FC</a>.
+      Nothing here is animated or guessed: between two frames (33 milliseconds apart) positions are interpolated
+      for smooth playback, that's all. The score, clock, match feed and win probability come from the event data
+      (Hudl StatsBomb), lined up with the tracking on the shots both providers recorded. Drag to orbit in
+      <b>Free</b> camera; <b>¼×</b> is slow motion.
+    </p>
+  </div>
+  <script type="module" src="js/play3d.js"></script>
+</body>
+</html>
