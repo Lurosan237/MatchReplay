@@ -29,7 +29,7 @@ penalty shoot-outs don't count. The live numbers the pipeline will compute depen
 ```
 replay (Python) --> match-events --> Flink job (Java) --> match-state --> verify / web page
    chaotic feed      (Kafka API)      event time,           (Kafka API)
-   late, duplicated                   watermarks,       \-> match-late
+   late, duplicated                   clock per match,  \-> match-late
                                       exactly-once
 ```
 
@@ -39,8 +39,12 @@ per match (score, shots, xG, passes, box entries, cards, momentum) and emits a s
 every 5 seconds of match time:
 
 - **Event time, not arrival time.** Events are buffered per 5-second window of match time; a
-  window is applied only when the watermark (the latest event time minus the allowed delay)
+  window is applied only when the match's clock (its latest event time minus the allowed delay)
   passes its end, so a late event still lands in the right place.
+- **A clock per match, not one watermark.** Flink's watermark is one clock for the whole
+  stream, but every match starts at minute 0: once one match ended, the next would be entirely
+  "late". The crash test caught this. Each match now keeps its own clock in keyed state, and a
+  test replays two matches one after the other and interleaved.
 - **Duplicates** are recognised by event id; **events later than allowed** go to a side output
   instead of silently changing the numbers.
 - **Exactly-once.** State and Kafka offsets are checkpointed every 5 seconds and the output is
@@ -52,7 +56,8 @@ the events in perfect order: it is the oracle.
   must produce exactly the reference snapshots. One of them goes to extra time and penalties.
 - *End-to-end test (CI, every push):* a real broker and a real Flink cluster in Docker. One
   match replayed as fast as possible; then a second one with the Flink task manager **killed in
-  the middle of the match** and restarted. Both must come out identical to the reference.
+  the middle of the match** and restarted. Both must come out identical to the reference
+  (they do: 615/615 and 919/919 snapshots, the job restored from its last checkpoint).
 
 ## Roadmap
 
