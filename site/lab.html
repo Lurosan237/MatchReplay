@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MatchReplay Lab</title>
+  <meta name="description" content="The technology behind MatchReplay, without the match: the win probability model and the streaming logic, to play with.">
+  <link rel="stylesheet" href="css/site.css">
+  <link rel="stylesheet" href="css/lab.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="./"><span class="dot"></span>MatchReplay</a>
+      <nav><a href="./">Matches</a><a href="lab.html" aria-current="page">Lab</a><a href="https://github.com/Lurosan237/MatchReplay">Code</a></nav>
+    </header>
+
+    <section class="hero">
+      <div class="badges"><span class="badge replay">Lab</span><span class="badge">runs in your browser</span></div>
+      <h1>The technology, <em>without the match</em>.</h1>
+      <p>Two pieces of MatchReplay to play with directly: the live win probability model, and the logic that keeps
+        live numbers right when the data arrives late, out of order or twice. Everything below runs the same code
+        the site uses, on real data.</p>
+    </section>
+
+    <!-- 1. Win probability -->
+    <section class="lab-section" id="model">
+      <div class="lab-head">
+        <span class="lab-n">1</span>
+        <div><h2>Live win probability</h2>
+          <p>Set up any moment of a match. The model predicts each team's chance of scoring in every minute left,
+            from the score, red cards, the chances both sides have created and who is at home, then plays the
+            remaining minutes forward to the final whistle.</p></div>
+      </div>
+      <div class="lab-grid">
+        <div class="panel controls-panel">
+          <h3>The situation</h3>
+          <label class="slider">Minute <output id="o-minute"></output><input id="minute" type="range" min="0" max="94" value="60"></label>
+          <div class="pair">
+            <label class="stepper">Home goals <span><button data-for="hg" data-d="-1">−</button><output id="hg">0</output><button data-for="hg" data-d="1">+</button></span></label>
+            <label class="stepper">Away goals <span><button data-for="ag" data-d="-1">−</button><output id="ag">0</output><button data-for="ag" data-d="1">+</button></span></label>
+          </div>
+          <div class="pair">
+            <label class="stepper">Home red cards <span><button data-for="hr" data-d="-1">−</button><output id="hr">0</output><button data-for="hr" data-d="1">+</button></span></label>
+            <label class="stepper">Away red cards <span><button data-for="ar" data-d="-1">−</button><output id="ar">0</output><button data-for="ar" data-d="1">+</button></span></label>
+          </div>
+          <label class="slider">Home expected goals so far <output id="o-hx"></output><input id="hx" type="range" min="0" max="4" step="0.05" value="0.8"></label>
+          <label class="slider">Away expected goals so far <output id="o-ax"></output><input id="ax" type="range" min="0" max="4" step="0.05" value="0.8"></label>
+          <label class="check"><input type="checkbox" id="women"> Women's football</label>
+        </div>
+        <div class="panel">
+          <h3>Who wins from here</h3>
+          <div class="big-bar" id="bar"><div class="seg home"></div><div class="seg draw"></div><div class="seg away"></div></div>
+          <div class="big-labels" id="bar-labels"></div>
+          <h3 class="spaced">If nothing else changed, the odds by minute</h3>
+          <canvas class="chart" id="curve"></canvas>
+          <div class="legend"><span>— home win</span><span class="muted">— draw</span><span class="away-c">— away win</span></div>
+          <h3 class="spaced">5,000 simulated endings</h3>
+          <div id="scorelines" class="scorelines"></div>
+        </div>
+      </div>
+      <details class="panel model-card">
+        <summary>How good is it? The model card</summary>
+        <p>Tested leave-one-competition-out: each of the 12 competitions is forecast by a model trained on the other 11,
+          so all 558 matches are forecast unseen, one forecast per minute of play (35,268 in all).</p>
+        <table>
+          <tr><th>Forecast</th><th>Log loss</th><th>Brier score</th></tr>
+          <tr><td>This model</td><td>0.745</td><td>0.437</td></tr>
+          <tr><td>Score and clock only</td><td>0.760</td><td>0.446</td></tr>
+          <tr><td>Always the average outcome</td><td>1.077</td><td>0.652</td></tr>
+        </table>
+        <p>Lower is better. Calibration: when it gives the home team 85%, the home team wins about 84% of the time.</p>
+        <h3 class="spaced">What it learned: multipliers on a team's goal rate</h3>
+        <div id="weights" class="weights"></div>
+      </details>
+    </section>
+
+    <!-- 2. Streaming -->
+    <section class="lab-section" id="stream">
+      <div class="lab-head">
+        <span class="lab-n">2</span>
+        <div><h2>Correct numbers from a messy feed</h2>
+          <p>A live feed never arrives in order: some events come seconds late, some come twice. The pipeline waits
+            a little before it trusts a 5-second window of play, drops duplicates, and puts late events back in their
+            place. Wait too little and late events miss their window; wait longer and the numbers come later. Turn
+            the knobs and run a real match through it.</p></div>
+      </div>
+      <div class="lab-grid">
+        <div class="panel controls-panel">
+          <h3>The feed</h3>
+          <label class="slider">Match <select id="s-match">
+            <option value="3869685">Argentina v France, World Cup 2022 final</option>
+            <option value="3857280">Cameroon v Brazil, World Cup 2022</option>
+            <option value="3869486">Morocco v Portugal, World Cup 2022</option>
+          </select></label>
+          <label class="slider">Events that arrive late <output id="o-late"></output><input id="late" type="range" min="0" max="0.4" step="0.01" value="0.1"></label>
+          <label class="slider">How late, at most <output id="o-maxd"></output><input id="maxd" type="range" min="1000" max="20000" step="500" value="8000"></label>
+          <label class="slider">Events delivered twice <output id="o-dup"></output><input id="dup" type="range" min="0" max="0.1" step="0.005" value="0.02"></label>
+          <h3 class="spaced">The pipeline</h3>
+          <label class="slider">How long it waits for late events <output id="o-allow"></output><input id="allow" type="range" min="0" max="20000" step="500" value="8000"></label>
+          <button class="btn primary" id="run">▶ Run the match</button>
+        </div>
+        <div class="panel">
+          <h3>Every message, as it arrives</h3>
+          <canvas class="chart tall" id="feed"></canvas>
+          <div class="legend"><span><i class="dot ok"></i>on time</span><span><i class="dot reo"></i>late, put back in place</span><span><i class="dot dup"></i>duplicate, dropped</span><span><i class="dot lost"></i>too late: side output</span></div>
+          <div class="counters" id="counters"></div>
+          <div class="verdict" id="verdict"></div>
+        </div>
+      </div>
+      <p class="how">In the real pipeline this logic is a Java operator in Apache Flink, with its state checkpointed so
+        a crashed server resumes without losing or double-counting a goal. GitHub runs it on every change against the
+        same principle shown here: the output of the messy feed must equal the output of the perfect one.</p>
+    </section>
+
+    <footer>
+      Data: <a href="https://github.com/statsbomb/open-data">Hudl StatsBomb open data</a>. A student portfolio project,
+      not affiliated with any competition, club or data provider.
+    </footer>
+  </div>
+  <script type="module" src="js/lab.js"></script>
+</body>
+</html>

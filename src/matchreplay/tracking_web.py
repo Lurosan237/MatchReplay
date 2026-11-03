@@ -89,6 +89,14 @@ def names(game: int, team_id: str) -> dict[str, str]:
             if r["team"]["id"] == team_id}
 
 
+def keepers(game: int, team_id: str) -> list[str]:
+    path = PFF / "rosters" / f"{game}.json"
+    if not path.exists():
+        return []
+    return [r["shirtNumber"] for r in json.loads(path.read_text())
+            if r["team"]["id"] == team_id and r.get("positionGroupType") == "GK"]
+
+
 def export(game: int, matches: pd.DataFrame, events: pd.DataFrame, out_root: Path = OUT) -> dict:
     meta = pff_meta(game)
     sb_id, swapped = statsbomb_match(meta, matches)
@@ -111,9 +119,11 @@ def export(game: int, matches: pd.DataFrame, events: pd.DataFrame, out_root: Pat
     hs, as_ = list(z["home_shirts"]), list(z["away_shirts"])
     hk, ak = meta["homeTeamKit"], meta["awayTeamKit"]
     hn, an = names(game, meta["homeTeam"]["id"]), names(game, meta["awayTeam"]["id"])
+    hg, ag = keepers(game, meta["homeTeam"]["id"]), keepers(game, meta["awayTeam"]["id"])
     hteam, ateam = meta["homeTeam"]["name"], meta["awayTeam"]["name"]
     if swapped:                       # StatsBomb's home team is PFF's away team
         home, away, hs, as_, hk, ak, hn, an = away, home, as_, hs, ak, hk, an, hn
+        hg, ag = ag, hg
         hteam, ateam = ateam, hteam
         home_on_left = ~home_on_left
     flip = ~home_on_left
@@ -151,6 +161,7 @@ def export(game: int, matches: pd.DataFrame, events: pd.DataFrame, out_root: Pat
         "home_kit": kit(hk), "away_kit": kit(ak),
         "home_shirts": [str(s) for s in hs], "away_shirts": [str(s) for s in as_],
         "home_names": {str(s): hn.get(str(s)) for s in hs}, "away_names": {str(s): an.get(str(s)) for s in as_},
+        "home_keepers": hg, "away_keepers": ag,
         "pitch": {"length": pitch["length"], "width": pitch["width"]}, "fps": meta.get("fps", 29.97),
         "chunk_ms": CHUNK_MS, "chunks": chunks, "clock_offsets_ms": offsets,
         "source": "PFF FC World Cup 2022 tracking data",

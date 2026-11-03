@@ -1,14 +1,5 @@
 const $ = (id) => document.getElementById(id);
 
-// Cameroon's matches in the data, with what made each one worth watching
-const STORY = [
-  { id: 3857280, note: "Group stage, last game. Vincent Aboubakar heads a stoppage-time winner against Brazil, then is sent off for celebrating: Cameroon's first ever World Cup win over Brazil." },
-  { id: 3857259, note: "Two goals down to Serbia, Cameroon come back to 3-3 in the second half." },
-  { id: 3857290, note: "Breel Embolo, born in Yaoundé, scores for Switzerland and refuses to celebrate." },
-  { id: 3920413, note: "AFCON 2023, a must-win game: 1-0 up, then 1-2 down with five minutes left, then an own goal and Christopher Wooh's stoppage-time winner." },
-  { id: 3922238, note: "AFCON 2023 round of 16: Ademola Lookman's two goals send Cameroon home." },
-];
-
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 let tracked = new Set();   // matches with real player tracking (World Cup 2022): playable in 3D
@@ -38,10 +29,6 @@ async function main() {
   });
   const all = new Map(index.flatMap((g) => g.matches.map((m) => [m.id, { ...m, comp: g.name }])));
   $("count").textContent = `${all.size} matches`;
-
-  $("story").innerHTML = STORY.filter((s) => all.has(s.id))
-    .map((s) => card(all.get(s.id), `<div class="note">${esc(s.note)}</div><div class="meta"><span>${esc(all.get(s.id).comp)}</span></div>`, "featured"))
-    .join("");
 
   let current = index[0].key;
   const render = () => {

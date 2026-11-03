@@ -1,8 +1,8 @@
 # Match Replay
 
 Real football matches replayed as live data streams: live win probability, "what if" simulation
-of any moment, and a 3D view of the match. Showcase: the Africa Cup of Nations 2023, including
-Cameroon's four matches.
+of any moment, and the World Cup 2022 in 3D from real player tracking. Plus a Lab page for the
+technology alone.
 
 > **Status: work in progress.** Layers 1 to 5 are done: the data, the streaming pipeline, the 2D
 > replay in the browser, live win probability with "what if", and the World Cup 2022 in 3D from
@@ -115,7 +115,11 @@ most likely final scores, and one simulated story of how it could have gone.
 All 64 matches of the 2022 World Cup play in 3D in the browser (`site/play3d.html`): every player
 and the ball where they really were, **every frame, 29.97 times a second**, from the optical
 tracking data PFF FC released for free. Nothing is animated or guessed; positions are only
-interpolated between frames 33 ms apart, for smooth playback. Four cameras (broadcast, tactical,
+interpolated between frames 33 ms apart, for smooth playback. Players are jointed, kitted figures
+(team colours from PFF's metadata, keepers in their own colour, numbers on the back) animated from
+the tracking itself: each player's real speed sets standing, jogging or sprinting, stride and arm
+swing follow the ground actually covered, and the body leans into the run and turns the way the
+player moves. A crowd, floodlights and a panelled ball that rolls with its distance. Four cameras (broadcast, tactical,
 following the ball, free orbit), slow motion, player names, a ball trail. The score, clock, feed
 and win probability come from the event data, so the 3D view and the 2D replay tell the same match.
 
@@ -131,6 +135,20 @@ How it gets there:
   the `tracking-data` release, which the website build unpacks. Nothing from PFF is committed; the
   workflow needs the folder id from PFF's welcome email as the `PFF_FOLDER` secret.
 
+## The Lab
+
+`site/lab.html` is for people who only want the technology, without watching a match:
+- **Win probability playground.** Set the minute, score, red cards and the chances each side has
+  created; see the odds, how they move minute by minute if nothing else changes, and 5,000
+  simulated endings. With the model card (unseen-match scores, calibration) and every learned
+  multiplier.
+- **Correct numbers from a messy feed.** A real match is delivered late, out of order and twice,
+  with knobs for how messy the feed is and how long the pipeline waits. Every message is plotted as
+  it arrives, and the run ends with a verdict: identical to a perfect feed, or how many snapshots
+  drifted because events arrived after their window closed. It is the streaming job's logic in
+  JavaScript (`site/js/streamlab.js`), tested like the real one: a messy feed must give exactly the
+  perfect feed's numbers.
+
 ## Roadmap
 
 - [x] Layer 1: ingest 12 competitions, typed tables, data report
@@ -142,7 +160,7 @@ How it gets there:
       simulation
 - [x] Layer 5: the World Cup 2022 in 3D, every frame of the real tracking data
 - [ ] Layer 6: reconstructed movement for the other competitions
-- [ ] Layer 7: polish, and Cameroon's matches as the story
+- [ ] Layer 7: polish
 
 ## Running it
 

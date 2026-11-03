@@ -3,6 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Match, PERIOD_NAME } from "./replay.js";
 import { WinModel } from "./winprob.js";
 import { Tracking } from "./tracking.js";
+import { Footballer, makeBall, kits } from "./avatar.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -18,7 +19,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b1210);
-scene.fog = new THREE.Fog(0x0b1210, 140, 260);
+scene.fog = new THREE.Fog(0x0b1210, 160, 320);
 const camera = new THREE.PerspectiveCamera(32, 16 / 9, 0.5, 500);
 const controls = new OrbitControls(camera, canvas);
 controls.enabled = false;
@@ -87,22 +88,59 @@ function buildPitch(L, W) {
   }
 }
 
-function stands(L, W) {
-  // Low, dark terraces around the pitch, so the horizon isn't empty
-  const mat = new THREE.MeshLambertMaterial({ color: 0x18241f });
-  const tier = (w, d, x, z, ry) => {
-    for (let k = 0; k < 3; k++) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 2.5 + k * 2.5, 6), mat);
-      m.position.set(x, (2.5 + k * 2.5) / 2, z);
-      m.rotation.y = ry;
-      m.translateZ(-(d + k * 6));
-      scene.add(m);
+function crowdTexture() {
+  // A packed crowd seen from the pitch: rows of small heads and shirts in many colours
+  const c = document.createElement("canvas");
+  c.width = 1024; c.height = 256;
+  const g = c.getContext("2d");
+  g.fillStyle = "#1a2320"; g.fillRect(0, 0, 1024, 256);
+  const colours = ["#d8d8d8", "#2b2b2b", "#b33a3a", "#e0b84a", "#3a6bb3", "#2f8a4a", "#7d4a9a", "#c7c2b0", "#8a5a3a"];
+  for (let y = 6; y < 256; y += 9) {
+    for (let x = (y / 9) % 2 ? 3 : 7; x < 1024; x += 8) {
+      if (Math.random() < 0.08) continue;
+      g.fillStyle = colours[(Math.random() * colours.length) | 0];
+      g.fillRect(x, y, 5, 5);
+      g.fillStyle = "#6b5040";
+      g.fillRect(x + 1, y - 3, 3, 3);
     }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+function stands(L, W) {
+  // Terraces all round with a crowd, a roof edge and floodlights, so the horizon isn't empty
+  const crowd = crowdTexture();
+  const wall = new THREE.MeshLambertMaterial({ color: 0x141c19 });
+  const hoarding = new THREE.MeshBasicMaterial({ color: 0x0f3d2a });
+  const side = (length, dist, ry) => {
+    const g = new THREE.Group();
+    const tex = crowd.clone(); tex.needsUpdate = true; tex.repeat.set(length / 40, 1);
+    const seats = new THREE.Mesh(new THREE.PlaneGeometry(length, 26), new THREE.MeshLambertMaterial({ map: tex }));
+    seats.rotation.x = -0.62;                          // raked like a real stand
+    seats.position.set(0, 9.5, -dist - 8);
+    const board = new THREE.Mesh(new THREE.BoxGeometry(length, 1, 0.2), hoarding);
+    board.position.set(0, 0.5, -dist + 3);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(length, 22, 1), wall);
+    back.position.set(0, 11, -dist - 19);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(length, 0.8, 16), wall);
+    roof.position.set(0, 22, -dist - 12);
+    g.add(seats, board, back, roof);
+    g.rotation.y = ry;
+    scene.add(g);
   };
-  tier(L + 30, W / 2 + 12, 0, 0, 0);
-  tier(L + 30, W / 2 + 12, 0, 0, Math.PI);
-  tier(W + 30, L / 2 + 14, 0, 0, Math.PI / 2);
-  tier(W + 30, L / 2 + 14, 0, 0, -Math.PI / 2);
+  side(L + 40, W / 2 + 6, 0);
+  side(L + 40, W / 2 + 6, Math.PI);
+  side(W + 40, L / 2 + 6, Math.PI / 2);
+  side(W + 40, L / 2 + 6, -Math.PI / 2);
+  for (const [x, z] of [[-L / 2 - 8, -W / 2 - 8], [L / 2 + 8, -W / 2 - 8], [-L / 2 - 8, W / 2 + 8], [L / 2 + 8, W / 2 + 8]]) {
+    const light = new THREE.Mesh(new THREE.BoxGeometry(5, 2, 0.5), new THREE.MeshBasicMaterial({ color: 0xfff6dc }));
+    light.position.set(x, 32, z);
+    light.lookAt(0, 0, 0);
+    scene.add(light);
+  }
 }
 
 function label(text, color = "#ffffff", bg = "rgba(11,18,16,0.75)") {
@@ -120,25 +158,15 @@ function label(text, color = "#ffffff", bg = "rgba(11,18,16,0.75)") {
 }
 
 function player(kit, shirt, name) {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 1.05, 6, 14),
-    new THREE.MeshStandardMaterial({ color: kit.primary || "#cccccc", roughness: 0.6 }));
-  body.position.y = 0.85; body.castShadow = true;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12), new THREE.MeshStandardMaterial({ color: 0x5a3a28, roughness: 0.8 }));
-  head.position.y = 1.72; head.castShadow = true;
-  const num = label(shirt, kit.text || "#000", kit.primary || "#ccc");
-  num.position.y = 2.45;
-  const tag = label(name || shirt);
-  tag.position.y = 3.3; tag.visible = false;
-  g.add(body, head, num, tag);
-  g.userData = { tag };
-  g.visible = false;
-  scene.add(g);
-  return g;
+  const f = new Footballer(scene, kit, shirt);
+  const tag = label(name ? `${shirt} ${name}` : shirt);
+  tag.position.y = 2.25; tag.visible = false;
+  f.root.add(tag);
+  f.tag = tag;
+  return f;
 }
 
-const ball = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, emissive: 0x333333 }));
-ball.castShadow = true;
+const ball = makeBall();
 scene.add(ball);
 const trailGeo = new THREE.BufferGeometry();
 const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0.6 }));
@@ -162,8 +190,10 @@ async function load() {
   $("to2d").href = `match.html?id=${id}`;
   buildPitch(tm.pitch.length, tm.pitch.width);
   stands(tm.pitch.length, tm.pitch.width);
-  homeMeshes = tm.home_shirts.map((s) => player(tm.home_kit, s, tm.home_names[s]));
-  awayMeshes = tm.away_shirts.map((s) => player(tm.away_kit, s, tm.away_names[s]));
+  const k = kits(tm.home_kit, tm.away_kit);
+  const hk = new Set(tm.home_keepers || []), ak = new Set(tm.away_keepers || []);
+  homeMeshes = tm.home_shirts.map((s) => player(hk.has(s) ? k.homeKeeper : k.home, s, tm.home_names[s]));
+  awayMeshes = tm.away_shirts.map((s) => player(ak.has(s) ? k.awayKeeper : k.away, s, tm.away_names[s]));
   const start = Number(params.get("t"));
   state.t = Number.isFinite(start) && start > 0 ? match.fromPlayed(start * 60000) : Math.max(match.start, tm.chunks[0].start);
   track.prefetch(state.t, 3);
@@ -187,7 +217,7 @@ function wire() {
     const g = match.goals().find((h) => h.t > state.t + 500);
     if (g) { seek(g.t - 15000); setPlaying(true); } else flash("No more goals in this match");
   };
-  $("show-names").onchange = () => { for (const p of [...homeMeshes, ...awayMeshes]) p.userData.tag.visible = $("show-names").checked; };
+  $("show-names").onchange = () => { for (const p of [...homeMeshes, ...awayMeshes]) p.tag.visible = $("show-names").checked; };
   addEventListener("keydown", (e) => {
     if (e.code === "Space" && e.target === document.body) { e.preventDefault(); setPlaying(!state.playing); }
     if (e.code === "ArrowRight") seek(match.fromPlayed(match.toPlayed(state.t) + 10000));
@@ -208,7 +238,11 @@ function resize() {
 }
 
 function setPlaying(on) { state.playing = on; $("play").textContent = on ? "❚❚ Pause" : "▶ Play"; }
-function seek(t) { state.t = t; state.trail = []; track.prefetch(t, 3); }
+function seek(t) {
+  state.t = t; state.trail = []; track.prefetch(t, 3);
+  for (const p of [...homeMeshes, ...awayMeshes]) p.reset();
+  ball.userData.last = null;
+}
 
 function flash(text, kind = "") {
   const b = $("banner");
@@ -234,8 +268,8 @@ function frame(now) {
     for (const h of match.highlights) if (h.t > before && h.t <= state.t && (h.kind === "goal" || h.kind === "owngoal")) flash(`⚽ ${h.text.replace("GOAL! ", "")}`, "goal");
     track.prefetch(state.t);
   }
-  if (f && !f.gap) place(f);
-  for (const p of [...homeMeshes, ...awayMeshes]) if (f && f.gap) p.visible = false;
+  if (f && !f.gap) place(f, dt);
+  for (const p of [...homeMeshes, ...awayMeshes]) if (f && f.gap) p.hide();
   moveCamera(f && !f.gap ? f : null, dt);
   hud();
   renderer.render(scene, camera);
@@ -243,22 +277,18 @@ function frame(now) {
 }
 
 // Data: x along the pitch (home attacks +x), y across. Scene: x, z = -y, up is y.
-function place(f) {
-  const set = (meshes, pts) => meshes.forEach((m, j) => {
-    const p = pts[j];
-    m.visible = !!p;
-    if (p) {
-      const nx = p[0], nz = -p[1];
-      const dx = nx - m.position.x, dz = nz - m.position.z;
-      if (dx * dx + dz * dz > 0.0004) m.rotation.y = Math.atan2(dx, dz);
-      m.position.set(nx, 0, nz);
-    }
+function place(f, dt) {
+  const bx = f.ball ? f.ball[0] : ball.position.x, bz = f.ball ? -f.ball[1] : ball.position.z;
+  const set = (players, pts) => players.forEach((p, j) => {
+    const pt = pts[j];
+    if (!pt) { p.hide(); return; }
+    p.update(pt[0], -pt[1], state.t, bx, bz, dt);
   });
   set(homeMeshes, f.home);
   set(awayMeshes, f.away);
   if (f.ball) {
     ball.visible = true;
-    ball.position.set(f.ball[0], Math.max(0.22, f.ball[2] || 0), -f.ball[1]);
+    ball.roll(f.ball[0], Math.max(0.16, f.ball[2] || 0), -f.ball[1]);
     if ($("show-trails").checked) {
       state.trail.push(ball.position.clone());
       if (state.trail.length > 45) state.trail.shift();
@@ -273,14 +303,14 @@ function moveCamera(f, dt) {
   const b = f && f.ball ? ball.position : camTarget;
   const L = track.meta.pitch.length;
   if (state.cam === "broadcast") {
-    camTarget.lerp(new THREE.Vector3(Math.max(-L / 2 + 14, Math.min(L / 2 - 14, b.x)), 0, b.z * 0.35), 1 - Math.exp(-dt / 400));
-    camPos.set(camTarget.x * 0.8, 40, 64);
+    camTarget.lerp(new THREE.Vector3(Math.max(-L / 2 + 16, Math.min(L / 2 - 16, b.x)), 0, b.z * 0.45), 1 - Math.exp(-dt / 450));
+    camPos.set(camTarget.x * 0.9, 17, 40);
   } else if (state.cam === "tactical") {
     camTarget.set(0, 0, 4);
     camPos.set(0, 112, 52);
   } else {
     camTarget.lerp(b, 1 - Math.exp(-dt / 250));
-    camPos.set(camTarget.x - 16, 9, camTarget.z + 14);
+    camPos.set(camTarget.x - 11, 5.5, camTarget.z + 10);
   }
   camera.position.lerp(camPos, 1 - Math.exp(-dt / 300));
   camera.lookAt(camTarget);
