@@ -18,7 +18,9 @@ export function lastAtOrBefore(arr, x) {
 }
 
 export class Match {
-  constructor(data) {
+  /** model: a WinModel (winprob.js), for the live win probability. */
+  constructor(data, model = null) {
+    this.model = model;
     this.meta = data.meta;
     this.types = data.types;
     this.players = data.players;
@@ -101,7 +103,31 @@ export class Match {
   /** The live numbers at time t: the last snapshot emitted at or before it (as the pipeline would have). */
   snapshot(t) {
     const i = lastAtOrBefore(this.snaps.time, t);
-    if (i < 0) return null;
+    return i < 0 ? null : this.snapshotAt(i);
+  }
+
+  /** Win probability after every snapshot: from the pipeline when it sent it (live), else computed here. */
+  get winProbs() {
+    if (!this._wp) {
+      const S = this.snaps, n = S.time.length;
+      this._wp = S.win_prob && S.win_prob.length === n ? S.win_prob
+        : this.model ? Array.from({ length: n }, (_, i) => this.model.forSnapshot(this.snapshotAt(i), !!this.meta.women))
+        : new Array(n).fill(null);
+    }
+    return this._wp;
+  }
+
+  /** [P(home wins), P(draw), P(away wins)] as of time t, or null (shoot-out, or no model). */
+  winProb(t) {
+    const i = lastAtOrBefore(this.snaps.time, t);
+    return i < 0 ? (this.model ? this.model.forSnapshot(this.#kickoff(), !!this.meta.women) : null) : this.winProbs[i];
+  }
+
+  #kickoff() {
+    return { time: this.start, period: 1, score: [0, 0], h_red: 0, a_red: 0, h_xg: 0, a_xg: 0 };
+  }
+
+  snapshotAt(i) {
     const out = {};
     for (const k in this.snaps) out[k] = this.snaps[k][i];
     return out;

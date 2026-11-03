@@ -46,13 +46,19 @@ public class MatchState {
     public int minute = 0, period = 1;
     public long last_time = 0;
     public int events = 0;
+    public boolean women = false;
 
     public MatchState() {}
 
     public MatchState(long matchId, String home, String away) {
+        this(matchId, home, away, false);
+    }
+
+    public MatchState(long matchId, String home, String away, boolean women) {
         this.match_id = matchId;
         this.home = home;
         this.away = away;
+        this.women = women;
     }
 
     private Side side(String team) {
@@ -133,6 +139,9 @@ public class MatchState {
         m.put("away_stats", awaySide.toMap());
         m.put("possession_home", totalPasses == 0 ? 0.5 : round4((double) homeSide.passes / totalPasses));
         m.put("momentum", round4(homeSide.momentum - awaySide.momentum));
+        // From the numbers as they appear in the snapshot (xG rounded), exactly as in Python
+        m.put("win_prob", WinProbability.forSnapshot(t, period, homeSide.goals, awaySide.goals, homeSide.red,
+                awaySide.red, round4(homeSide.xg), round4(awaySide.xg), women));
         return m;
     }
 

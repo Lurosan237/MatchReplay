@@ -68,7 +68,8 @@ END_AFTER_MS = 60_000
 
 def end_marker(msgs: list[dict]) -> dict:
     last = msgs[-1]
-    return {"match_id": last["match_id"], "home": last["home"], "away": last["away"], "type": END,
+    return {"match_id": last["match_id"], "home": last["home"], "away": last["away"],
+            "women": last.get("women", False), "type": END,
             "event_id": f"end-{last['match_id']}", "index": last["index"] + 1, "period": last["period"],
             "minute": last["minute"], "second": last["second"], "event_time": last["event_time"] + END_AFTER_MS}
 
@@ -78,7 +79,7 @@ def messages(match_id: int) -> list[dict]:
     meta, events = load_match(match_id)
     out = []
     for e in events.itertuples(index=False):
-        msg = {"match_id": match_id, "home": meta["home"], "away": meta["away"],
+        msg = {"match_id": match_id, "home": meta["home"], "away": meta["away"], "women": bool(meta["women"]),
                "event_time": event_time_ms(int(e.period), float(e.clock))}
         msg.update({f: _clean(getattr(e, f)) for f in FIELDS})
         out.append(msg)
@@ -139,6 +140,8 @@ class MatchState:
     period: int = 1
     last_time: int = 0              # event time of the last applied event (ms)
     events: int = 0
+    women: bool = False
+    model: dict | None = field(default=None, repr=False, compare=False)   # win probability (winprob.py)
 
     def __post_init__(self):
         self.sides = self.sides or {self.home: Side(), self.away: Side()}
@@ -189,6 +192,13 @@ class MatchState:
                 s.red += 1
 
     def snapshot(self, t: int) -> dict:
+        snap = self._numbers(t)
+        if self.model is not None:
+            from matchreplay.winprob import from_snapshot
+            snap["win_prob"] = from_snapshot(self.model["beta"], snap, self.women)
+        return snap
+
+    def _numbers(self, t: int) -> dict:
         self._decay(t)
         h, a = self.sides[self.home], self.sides[self.away]
         total_passes = h.passes + a.passes
@@ -211,15 +221,19 @@ def _round(d: dict) -> dict:
     return {k: round(v, 4) if isinstance(v, float) else v for k, v in d.items()}
 
 
-def reference_snapshots(msgs: Iterable[dict], every_ms: int = SNAPSHOT_EVERY_MS) -> list[dict]:
+def reference_snapshots(msgs: Iterable[dict], every_ms: int = SNAPSHOT_EVERY_MS, model: dict | None = None
+                        ) -> list[dict]:
     """The live state at the end of every `every_ms` of match time that contains at least one event,
-    computed from the events in true order with duplicates removed. The oracle for the pipeline."""
+    computed from the events in true order with duplicates removed. The oracle for the pipeline.
+    With a win-probability model (winprob.load()), each snapshot also carries win_prob, as the
+    Flink job's do."""
     unique = {m["event_id"]: m for m in msgs if m["type"] != END}
     ordered = sorted(unique.values(), key=lambda m: (m["event_time"], m["index"]))
     if not ordered:
         return []
     first = ordered[0]
-    state = MatchState(first["match_id"], first["home"], first["away"])
+    state = MatchState(first["match_id"], first["home"], first["away"], women=bool(first.get("women", False)),
+                       model=model)
     out, window_end = [], None
     for m in ordered:
         end = (m["event_time"] // every_ms + 1) * every_ms

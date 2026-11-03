@@ -24,6 +24,10 @@
       <div class="team away"><span id="away">Away</span><span class="swatch away"></span></div>
     </section>
     <div class="subtitle" id="subtitle"></div>
+    <div class="winbar" id="winbar" aria-label="Win probability">
+      <div class="seg home" id="wb-home"></div><div class="seg draw" id="wb-draw"></div><div class="seg away" id="wb-away"></div>
+    </div>
+    <div class="winlabels"><span id="wl-home"></span><span id="wl-draw"></span><span id="wl-away"></span></div>
 
     <div class="controls">
       <button class="btn primary" id="play">▶ Play</button>
@@ -45,6 +49,12 @@
         <div class="panel">
           <h3>Live numbers</h3>
           <div id="stats"></div>
+        </div>
+        <div class="panel whatif" id="whatif" hidden></div>
+        <div class="panel">
+          <h3>Win probability</h3>
+          <canvas class="spark" id="wp"></canvas>
+          <div class="legend" id="wp-legend"></div>
         </div>
         <div class="panel">
           <h3>Expected goals over time</h3>
@@ -68,6 +78,11 @@
       shown here, because event data says where the ball was, not where everyone stood. The numbers on the right
       are the snapshots the streaming pipeline emits every 5 seconds of match time (score, shots, expected goals,
       passes, box entries, momentum), the same ones the Java/Flink job is tested against.
+      <b>Win probability</b> is a model trained on all 558 matches: each team's chance of scoring in every
+      minute left, from the score, the clock, red cards and the chances both teams have created so far, played
+      forward to the final whistle. The Flink job computes the same number live, in the stream. In the match feed,
+      <b>What if?</b> flips one moment (a goal, a missed shot, a red card) and replays the rest of the match with
+      the changed score: how the odds would have read, and thousands of simulated endings.
       <b>Momentum</b> on the timeline adds up recent threat (the xG of shots, plus a little for every entry into
       the box), forgetting half of it every 5 minutes: above the line the home team is pushing, below it the away team.
     </p>

@@ -14,6 +14,7 @@ from __future__ import annotations
 import gzip
 import json
 
+from matchreplay import winprob
 from matchreplay.paths import ROOT
 from matchreplay.stream import Chaos, chaos, end_marker, messages, reference_snapshots
 
@@ -36,7 +37,7 @@ def main() -> None:
     for match_id, label in MATCHES.items():
         msgs = messages(match_id)
         delivered = chaos(msgs, CHAOS) + [end_marker(msgs)]
-        expected = reference_snapshots(delivered)
+        expected = reference_snapshots(delivered, model=winprob.load())
         write(FIXTURES / f"{match_id}.input.jsonl.gz", delivered)
         write(FIXTURES / f"{match_id}.expected.jsonl.gz", expected)
         print(f"{label}: {len(delivered):,} messages in, {len(expected)} snapshots out, final score "

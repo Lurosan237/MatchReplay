@@ -1,6 +1,7 @@
 import { Match, PERIOD_NAME } from "./replay.js";
 import { Pitch, css } from "./pitch.js";
 import { LiveFeed } from "./live.js";
+import { WinModel, whatIf } from "./winprob.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -9,9 +10,13 @@ const liveUrl = params.get("live");          // e.g. ws://localhost:8765: follow
 let feedSource = null;
 
 const state = { t: 0, playing: false, speed: 20, lastFrame: 0, feedCount: -1, score: "", banner: 0 };
-let match, pitch;
+let match, pitch, model = null;
 
 async function load() {
+  try {
+    const r = await fetch("data/winprob.json");
+    if (r.ok) model = new WinModel(await r.json());
+  } catch { /* no model: the page still replays, without win probability */ }
   if (liveUrl) {
     feedSource = new LiveFeed(liveUrl, id);
     $("subtitle").textContent = `Connecting to ${liveUrl}…`;
@@ -19,12 +24,12 @@ async function load() {
       if (feedSource.status === "error" || feedSource.status === "closed") throw new Error(`the gateway at ${liveUrl} is not reachable`);
       await new Promise((r) => setTimeout(r, 200));
     }
-    match = feedSource.build();
+    match = feedSource.build(model);
     state.speed = 60;
   } else {
     const res = await fetch(`data/matches/${id}.json`);
     if (!res.ok) throw new Error(`No match ${id}`);
-    match = new Match(await res.json());
+    match = new Match(await res.json(), model);
   }
   const m = match.meta;
   document.title = `${m.home} v ${m.away} · MatchReplay`;
@@ -60,6 +65,10 @@ function wire() {
     if (e.code === "ArrowRight") seek(match.fromPlayed(match.toPlayed(state.t) + 30000));
     if (e.code === "ArrowLeft") seek(match.fromPlayed(match.toPlayed(state.t) - 30000));
   });
+  $("feed").onclick = (e) => {
+    const b = e.target.closest("button.wi");
+    if (b) showWhatIf(match.highlights[Number(b.dataset.h)]);
+  };
   const tl = $("timeline");
   const scrub = (e) => {
     const r = tl.getBoundingClientRect();
@@ -92,7 +101,7 @@ function frame(now) {
   const dt = state.lastFrame ? Math.min(100, now - state.lastFrame) : 0;
   state.lastFrame = now;
   if (feedSource) {
-    if (feedSource.dirty) { match = feedSource.build(); state.feedCount = -1; }
+    if (feedSource.dirty) { match = feedSource.build(model); state.feedCount = -1; }
     $("subtitle").textContent = `Live from the pipeline · ${feedSource.status} · ${feedSource.events.length} events, ${feedSource.snaps.length} snapshots`;
   }
   if (state.playing) {
@@ -144,6 +153,8 @@ function draw() {
   $("pens").textContent = snap && seg.period === 5 ? `Penalties ${snap.shootout[0]} - ${snap.shootout[1]}` : "";
   stats(snap);
   feed(t);
+  winbar(t, seg.period);
+  wpChart(t);
   xgChart(t);
   timeline(t);
 }
@@ -173,10 +184,91 @@ function feed(t) {
   if (shown.length === state.feedCount) return;
   state.feedCount = shown.length;
   const big = new Set(["goal", "owngoal", "red", "pen", "penmiss"]);
+  const flippable = new Set(["goal", "owngoal", "shot", "red"]);
   $("feed").innerHTML = shown.slice(-40).reverse().map((h) => {
     const minute = h.period === 5 ? "PEN" : `${h.minute + 1}'`;
-    return `<div><span class="m">${minute}</span><span class="${big.has(h.kind) ? "big " + h.kind : ""}">${h.text}</span></div>`;
+    const wi = model && flippable.has(h.kind) && h.period !== 5
+      ? `<button class="wi" data-h="${match.highlights.indexOf(h)}" title="Replay the rest of the match as if this had gone the other way">What if?</button>` : "";
+    return `<div><span class="m">${minute}</span><span class="${big.has(h.kind) ? "big " + h.kind : ""}">${h.text}${wi}</span></div>`;
   }).join("") || `<div><span class="m"></span><span>Kick-off is coming up. Press play.</span></div>`;
+}
+
+const pct = (v) => `${Math.round(v * 100)}%`;
+
+function winbar(t, period) {
+  const p = model ? match.winProb(t) : null;
+  $("winbar").style.visibility = p ? "visible" : "hidden";
+  if (!p) {
+    $("wl-home").textContent = ""; $("wl-away").textContent = "";
+    $("wl-draw").textContent = period === 5 ? "Penalty shoot-out" : "";
+    return;
+  }
+  $("wb-home").style.flexBasis = pct(p[0]);
+  $("wb-draw").style.flexBasis = pct(p[1]);
+  $("wb-away").style.flexBasis = pct(p[2]);
+  $("wl-home").textContent = `${match.meta.home} ${pct(p[0])}`;
+  $("wl-draw").textContent = `${period >= 3 ? "Penalties" : "Draw"} ${pct(p[1])}`;
+  $("wl-away").textContent = `${pct(p[2])} ${match.meta.away}`;
+}
+
+function wpChart(t) {
+  const { c, w, h } = setup($("wp"));
+  if (!model) return;
+  const S = match.snaps, P = match.winProbs, end = match.duration;
+  const X = (time) => (match.toPlayed(time) / end) * w;
+  c.strokeStyle = css("--line"); c.beginPath(); c.moveTo(0, h / 2); c.lineTo(w, h / 2); c.stroke();
+  // home win probability (up) and away win probability (down from the top)
+  const line = (times, probs, k, color, dash, until = t) => {
+    c.beginPath(); c.strokeStyle = color; c.lineWidth = 2; c.setLineDash(dash);
+    let started = false;
+    for (let i = 0; i < times.length && times[i] <= until; i++) {
+      if (!probs[i]) { started = false; continue; }
+      const x = X(times[i]), y = h - probs[i][k] * (h - 4) - 2;
+      started ? c.lineTo(x, y) : c.moveTo(x, y);
+      started = true;
+    }
+    c.stroke(); c.setLineDash([]);
+  };
+  line(S.time, P, 0, css("--home"), []);
+  line(S.time, P, 2, css("--away"), []);
+  if (state.whatif) {
+    const a = state.whatif.alt;
+    line(a.time, a.prob, 0, css("--home"), [4, 3], Infinity);
+    line(a.time, a.prob, 2, css("--away"), [4, 3], Infinity);
+  }
+  $("wp-legend").innerHTML = `<span>${match.meta.home} win</span><span>${state.whatif ? "dashed: what if" : ""}</span><span>${match.meta.away} win</span>`;
+}
+
+function showWhatIf(h) {
+  const w = whatIf(match, model, h);
+  if (!w) return;
+  state.whatif = w;
+  const m = match.meta, team = (side) => (side === 0 ? m.home : m.away);
+  const who = match.player(h.i) || team(h.side);
+  const what = { goal: `${who}'s goal`, owngoal: "the own goal", shot: `${who}'s shot`, red: `${who}'s red card` }[h.kind];
+  const [hw, d, aw] = w.sim.outcome;
+  const real = w.finalReal.score;
+  const story = w.sim.story.goals.length
+    ? w.sim.story.goals.map((g) => `${g.minute}' ${team(g.side)}`).join(", ") + `, final score ${w.sim.story.final.join(" - ")}`
+    : `no more goals, final score ${w.sim.story.final.join(" - ")}`;
+  const drawLabel = w.moment.extraTime ? "Penalties" : "Draw";
+  $("whatif").innerHTML = `
+    <button class="close" title="Close">×</button>
+    <h3>What if</h3>
+    <div class="q">What if ${what} (${h.minute + 1}') ${w.label}?</div>
+    <p>It really ended <b>${real[0]} - ${real[1]}</b>. Changing that one moment, ${w.sim.n.toLocaleString()} simulated
+      endings from there give:</p>
+    <table>
+      <tr><td>${m.home} win</td><td>${pct(hw)}</td></tr>
+      <tr><td>${drawLabel}</td><td>${pct(d)}</td></tr>
+      <tr><td>${m.away} win</td><td>${pct(aw)}</td></tr>
+    </table>
+    <p>Most likely final scores: ${w.sim.scorelines.slice(0, 4).map((s) => `<b>${s.score.join("-")}</b> ${pct(s.share)}`).join(" · ")}</p>
+    <p class="story">One way it could have gone: ${story}.</p>
+    <p>The dashed lines on the win-probability chart show how the odds would have read from then on, with the
+      changed score and everything else as it really happened.</p>`;
+  $("whatif").hidden = false;
+  $("whatif").querySelector(".close").onclick = () => { state.whatif = null; $("whatif").hidden = true; };
 }
 
 function setup(canvas) {

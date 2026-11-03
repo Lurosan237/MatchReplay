@@ -32,7 +32,7 @@ export class LiveFeed {
   get edge() { return this.events.reduce((m, e) => Math.max(m, e.t), 0); }
 
   /** A Match from everything received so far (late events land in their right place). */
-  build() {
+  build(model = null) {
     this.dirty = false;
     const ev = [...this.events].sort((a, b) => a.t - b.t || a.index - b.index);
     const types = [...new Set(ev.map((e) => e.type))];
@@ -46,6 +46,6 @@ export class LiveFeed {
     const snaps = [...this.snaps].sort((a, b) => a.time - b.time);
     const keys = snaps.length ? Object.keys(snaps[0]).filter((k) => k !== "kind") : ["time"];
     const scols = Object.fromEntries(keys.map((k) => [k, snaps.map((s) => s[k])]));
-    return new Match({ meta: this.meta, types, players, events: cols, snaps: scols });
+    return new Match({ meta: this.meta, types, players, events: cols, snaps: scols }, model);
   }
 }

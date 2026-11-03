@@ -11,6 +11,7 @@ public class MatchEvent {
     public long match_id;
     public String home;
     public String away;
+    public boolean women;
     /** Milliseconds on the match-long clock; always increases through a match. */
     public long event_time;
     public String event_id;

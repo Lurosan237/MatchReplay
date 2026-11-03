@@ -79,6 +79,11 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource><directory>src/main/resources</directory></resource>
+      <!-- The win-probability model, trained in Python: python -m matchreplay.winprob -->
+      <resource><directory>../models</directory><includes><include>winprob.json</include></includes></resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

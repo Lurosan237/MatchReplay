@@ -47,7 +47,8 @@ def web_event(m: dict) -> dict:
 
 def web_snap(s: dict) -> dict:
     out = {"kind": "snap", "time": s["time"], "minute": s["minute"], "period": s["period"], "score": s["score"],
-           "shootout": s["shootout"], "momentum": s["momentum"], "possession_home": s["possession_home"]}
+           "shootout": s["shootout"], "momentum": s["momentum"], "possession_home": s["possession_home"],
+           "win_prob": s.get("win_prob")}
     for k in STATS:
         out["h_" + k] = s["home_stats"][k]
         out["a_" + k] = s["away_stats"][k]

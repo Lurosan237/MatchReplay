@@ -88,7 +88,27 @@ footer { border-top: 1px solid var(--line); padding: 20px 0 40px; color: var(--m
 .score .pens { font-family: var(--mono); font-size: 13px; color: var(--away); min-height: 16px; }
 .subtitle { text-align: center; color: var(--muted); font-size: 13px; margin-top: -6px; }
 
-.stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; margin-top: 12px; }
+.winbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 12px auto 4px; max-width: 640px; background: var(--line); }
+.winbar .seg { transition: flex-basis 0.4s ease; flex: 0 0 33.3%; }
+.winbar .home { background: var(--home); }
+.winbar .draw { background: #5d7268; }
+.winbar .away { background: var(--away); }
+.winlabels { display: flex; justify-content: space-between; max-width: 640px; margin: 0 auto; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.winlabels span:nth-child(2) { text-align: center; }
+.winlabels span:last-child { text-align: right; }
+.feed button.wi { margin-left: 6px; border: 1px solid var(--line); background: transparent; color: var(--accent); border-radius: 999px; padding: 1px 8px; font-size: 11px; cursor: pointer; }
+.feed button.wi:hover { border-color: var(--accent); }
+.whatif { border-color: var(--accent); }
+.whatif p { margin: 6px 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.whatif p b { color: var(--text); }
+.whatif .q { color: var(--text); font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.whatif table { width: 100%; font-family: var(--mono); font-size: 12px; border-collapse: collapse; margin: 6px 0; }
+.whatif td { padding: 3px 0; border-bottom: 1px dashed var(--line); }
+.whatif td:last-child { text-align: right; }
+.whatif .story { color: var(--text); }
+.whatif .close { float: right; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; margin-top: 12px; align-items: start; }
 .pitch-box { position: relative; background: var(--grass-1); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
 .pitch-box canvas { display: block; width: 100%; height: auto; }
 .banner {
@@ -134,7 +154,27 @@ footer { border-top: 1px solid var(--line); padding: 20px 0 40px; color: var(--m
 .how b { color: var(--text); }
 
 @media (max-width: 900px) {
-  .stage { grid-template-columns: 1fr; }
+  .winbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 12px auto 4px; max-width: 640px; background: var(--line); }
+.winbar .seg { transition: flex-basis 0.4s ease; flex: 0 0 33.3%; }
+.winbar .home { background: var(--home); }
+.winbar .draw { background: #5d7268; }
+.winbar .away { background: var(--away); }
+.winlabels { display: flex; justify-content: space-between; max-width: 640px; margin: 0 auto; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.winlabels span:nth-child(2) { text-align: center; }
+.winlabels span:last-child { text-align: right; }
+.feed button.wi { margin-left: 6px; border: 1px solid var(--line); background: transparent; color: var(--accent); border-radius: 999px; padding: 1px 8px; font-size: 11px; cursor: pointer; }
+.feed button.wi:hover { border-color: var(--accent); }
+.whatif { border-color: var(--accent); }
+.whatif p { margin: 6px 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.whatif p b { color: var(--text); }
+.whatif .q { color: var(--text); font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.whatif table { width: 100%; font-family: var(--mono); font-size: 12px; border-collapse: collapse; margin: 6px 0; }
+.whatif td { padding: 3px 0; border-bottom: 1px dashed var(--line); }
+.whatif td:last-child { text-align: right; }
+.whatif .story { color: var(--text); }
+.whatif .close { float: right; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; }
+
+.stage { grid-template-columns: 1fr; }
   .side { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 }
 @media (max-width: 520px) {

@@ -5,12 +5,13 @@ import sys
 
 import websockets
 
+from matchreplay import winprob
 from matchreplay.stream import messages, reference_snapshots
 
 
 async def main(match_id: int) -> None:
     msgs = messages(match_id)
-    expected = reference_snapshots(msgs)
+    expected = reference_snapshots(msgs, model=winprob.load())
     final = expected[-1]
     events = snaps = 0
     last = None

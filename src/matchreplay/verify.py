@@ -16,6 +16,7 @@ import math
 import sys
 import time
 
+from matchreplay import winprob
 from matchreplay.stream import messages, reference_snapshots
 
 
@@ -57,7 +58,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--idle", type=float, default=90.0)
     args = parser.parse_args(argv)
 
-    expected = reference_snapshots(messages(args.match))
+    expected = reference_snapshots(messages(args.match), model=winprob.load())
     consumer = Consumer({"bootstrap.servers": args.bootstrap, "group.id": f"verify-{time.time_ns()}",
                          "auto.offset.reset": "earliest", "isolation.level": "read_committed"})
     consumer.subscribe([args.topic])

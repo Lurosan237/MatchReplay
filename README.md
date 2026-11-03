@@ -4,8 +4,8 @@ Real football matches replayed as live data streams: live win probability, "what
 of any moment, and a 3D view of the match. Showcase: the Africa Cup of Nations 2023, including
 Cameroon's four matches.
 
-> **Status: work in progress.** Layers 1 (data), 2 (streaming pipeline) and 3 (the 2D replay in
-> the browser) are done. See the roadmap below.
+> **Status: work in progress.** Layers 1 to 4 are done: the data, the streaming pipeline, the 2D
+> replay in the browser, and live win probability with "what if". See the roadmap below.
 
 ## Data
 
@@ -83,6 +83,32 @@ snapshot.
 Tests: `npm test --prefix site` replays every AFCON 2023 match in the page's own model (final
 scores, goals in the feed, timeline, clock, ball path); `tests/test_gateway.py` covers the gateway.
 
+## Live win probability, and "what if"
+
+Every snapshot now carries the chance of a home win, a draw and an away win
+([model and evaluation](reports/winprob.md)). The model predicts how fast each team scores from
+here: a Poisson regression on the game state (leading or trailing), red cards, the expected goals
+each team has created and conceded so far, and whether the team is listed at home. Those goal
+rates are then played forward minute by minute on the score difference, so they shift as the
+score would (a team that equalises stops pushing as hard), giving exact probabilities with no
+sampling. The phase is regulation, then extra time, where a draw means penalties.
+
+Tested honestly: each of the 12 competitions is forecast by a model trained on the other 11.
+Over all 558 matches it beats the same model without the match reading (score and clock only)
+and it is well calibrated: when it says 75%, the home team wins about 77% of the time.
+
+The same few lines run in three places and are tested to agree to the fourth decimal:
+- **Python** (`winprob.py`): training, and the reference snapshots;
+- **Java**, inside the Flink job (`WinProbability.java`): the pipeline emits win probability
+  live, in the stream, and the parity and crash tests check it like every other number;
+- **JavaScript**, in the browser (`site/js/winprob.js`).
+
+**What if?** In the match feed, any goal, shot or red card can be flipped: the goal that didn't
+go in, the miss that did, the red card never shown. The rest of the match is replayed with the
+changed score (the dashed win-probability lines: how the odds would have read), and 5,000
+endings are simulated from that moment with the same goal rates: the chances of each result, the
+most likely final scores, and one simulated story of how it could have gone.
+
 ## Roadmap
 
 - [x] Layer 1: ingest 12 competitions, typed tables, data report
@@ -90,7 +116,8 @@ scores, goals in the feed, timeline, clock, ball path); `tests/test_gateway.py` 
       and crash-recovery tests
 - [x] Layer 3: 2D replay in the browser, published as a static site, plus a live mode over
       WebSockets
-- [ ] Layer 4: live win probability and "what if" simulation
+- [x] Layer 4: live win probability (Python, Flink and browser, tested to agree) and "what if"
+      simulation
 - [ ] Layer 5: 3D view with real player movement (World Cup 2022 tracking data)
 - [ ] Layer 6: reconstructed movement for the other competitions
 - [ ] Layer 7: polish, and Cameroon's matches as the story
@@ -106,6 +133,7 @@ pip install -r requirements.txt
 pip install -e .
 python -m matchreplay.ingest        # downloads about 4 GB of JSON, keeps 300 MB of tables
 python -m matchreplay.datareport
+python -m matchreplay.winprob       # trains and evaluates the win-probability model (about 2 minutes)
 pytest
 ```
 

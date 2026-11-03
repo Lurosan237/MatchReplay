@@ -116,6 +116,8 @@ def main(argv: list[str] | None = None) -> None:
                                      "shootout": final["shootout"][-1] if final["time"] else [0, 0]})
         index.append(group)
         print(f"{key}: {len(group['matches'])} matches", flush=True)
+    model = ROOT / "models" / "winprob.json"
+    (args.out / "winprob.json").write_text(model.read_text())
     (args.out / "index.json").write_text(json.dumps(index, separators=(",", ":"), ensure_ascii=False))
     print(f"{sum(len(g['matches']) for g in index)} matches, {total / 1e6:.1f} MB gzipped")
 

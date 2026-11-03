@@ -82,7 +82,7 @@ public class LiveMatchState extends KeyedProcessFunction<Long, MatchEvent, Strin
         }
         seen.put(e.event_id, true);
         if (state.value() == null) {
-            state.update(new MatchState(e.match_id, e.home, e.away));
+            state.update(new MatchState(e.match_id, e.home, e.away, e.women));
         }
         long end = windowEnd(e.event_time);
         if (end <= clock()) {
