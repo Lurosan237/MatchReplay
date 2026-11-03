@@ -106,6 +106,8 @@ public final class ReplayJob {
                         .build())
                 .setDeliveryGuarantee(DeliveryGuarantee.EXACTLY_ONCE)
                 .setTransactionalIdPrefix(transactionPrefix)
+                // must not exceed the broker's maximum (15 minutes by default)
+                .setProperty("transaction.timeout.ms", "900000")
                 .build();
     }
 }

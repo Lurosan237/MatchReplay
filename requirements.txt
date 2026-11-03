@@ -4,6 +4,8 @@ pandas==2.2.3
 pyarrow==18.1.0
 requests==2.32.3
 
+# Streaming (replay and verify): see requirements-stream.txt
+
 # Development
 pytest==8.3.4
 ruff==0.8.6

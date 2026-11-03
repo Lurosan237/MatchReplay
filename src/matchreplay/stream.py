@@ -62,6 +62,17 @@ def load_match(match_id: int) -> tuple[dict, pd.DataFrame]:
     raise KeyError(f"match {match_id} not found in data/matches")
 
 
+END = "End"          # a marker after the last event: moves the watermark past it, then ignored
+END_AFTER_MS = 60_000
+
+
+def end_marker(msgs: list[dict]) -> dict:
+    last = msgs[-1]
+    return {"match_id": last["match_id"], "home": last["home"], "away": last["away"], "type": END,
+            "event_id": f"end-{last['match_id']}", "index": last["index"] + 1, "period": last["period"],
+            "minute": last["minute"], "second": last["second"], "event_time": last["event_time"] + END_AFTER_MS}
+
+
 def messages(match_id: int) -> list[dict]:
     """The match as the pipeline's input messages, in true event order."""
     meta, events = load_match(match_id)
@@ -203,7 +214,7 @@ def _round(d: dict) -> dict:
 def reference_snapshots(msgs: Iterable[dict], every_ms: int = SNAPSHOT_EVERY_MS) -> list[dict]:
     """The live state at the end of every `every_ms` of match time that contains at least one event,
     computed from the events in true order with duplicates removed. The oracle for the pipeline."""
-    unique = {m["event_id"]: m for m in msgs}
+    unique = {m["event_id"]: m for m in msgs if m["type"] != END}
     ordered = sorted(unique.values(), key=lambda m: (m["event_time"], m["index"]))
     if not ordered:
         return []

@@ -31,6 +31,7 @@ import org.apache.flink.util.OutputTag;
  */
 public class LiveMatchState extends KeyedProcessFunction<Long, MatchEvent, String> {
     public static final long WINDOW_MS = 5_000;
+    public static final String END = "End";
     public static final OutputTag<String> LATE = new OutputTag<>("late-events", Types.STRING);
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -52,6 +53,9 @@ public class LiveMatchState extends KeyedProcessFunction<Long, MatchEvent, Strin
 
     @Override
     public void processElement(MatchEvent e, Context ctx, Collector<String> out) throws Exception {
+        if (END.equals(e.type)) {
+            return;                                    // end-of-match marker: it only moved the watermark
+        }
         if (seen.contains(e.event_id)) {
             return;                                    // a duplicate delivery
         }

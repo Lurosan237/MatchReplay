@@ -4,7 +4,8 @@ Real football matches replayed as live data streams: live win probability, "what
 of any moment, and a 3D view of the match. Showcase: the Africa Cup of Nations 2023, including
 Cameroon's four matches.
 
-> **Status: work in progress.** Layer 1 (data) is done. See the roadmap below.
+> **Status: work in progress.** Layers 1 (data) and 2 (streaming pipeline) are done. See the
+> roadmap below.
 
 ## Data
 
@@ -23,10 +24,41 @@ Where players stood:
 558 matches** ([data report](reports/data.md)). Goals come from scoring shots and own goals;
 penalty shoot-outs don't count. The live numbers the pipeline will compute depend on this.
 
+## The streaming pipeline
+
+```
+replay (Python) --> match-events --> Flink job (Java) --> match-state --> verify / web page
+   chaotic feed      (Kafka API)      event time,           (Kafka API)
+   late, duplicated                   watermarks,       \-> match-late
+                                      exactly-once
+```
+
+A match is replayed into a Kafka-compatible broker (Redpanda) the way a real feed delivers it:
+5% of events late by up to 8 seconds, 1% delivered twice. The Flink job keeps one live state
+per match (score, shots, xG, passes, box entries, cards, momentum) and emits a snapshot for
+every 5 seconds of match time:
+
+- **Event time, not arrival time.** Events are buffered per 5-second window of match time; a
+  window is applied only when the watermark (the latest event time minus the allowed delay)
+  passes its end, so a late event still lands in the right place.
+- **Duplicates** are recognised by event id; **events later than allowed** go to a side output
+  instead of silently changing the numbers.
+- **Exactly-once.** State and Kafka offsets are checkpointed every 5 seconds and the output is
+  written in Kafka transactions, so a crash never loses or double-counts a goal.
+
+**How it is tested.** `matchreplay/stream.py` computes the same snapshots the simple way, from
+the events in perfect order: it is the oracle.
+- *Parity test (CI, every push):* the Flink job, fed two real AFCON matches as a chaotic feed,
+  must produce exactly the reference snapshots. One of them goes to extra time and penalties.
+- *End-to-end test (CI, every push):* a real broker and a real Flink cluster in Docker. One
+  match replayed as fast as possible; then a second one with the Flink task manager **killed in
+  the middle of the match** and restarted. Both must come out identical to the reference.
+
 ## Roadmap
 
 - [x] Layer 1: ingest 12 competitions, typed tables, data report
-- [ ] Layer 2: streaming replay pipeline (Java, Apache Flink, Kafka-compatible broker)
+- [x] Layer 2: streaming replay pipeline (Java, Apache Flink, Kafka-compatible broker), parity
+      and crash-recovery tests
 - [ ] Layer 3: 2D pitch view in the browser
 - [ ] Layer 4: live win probability and "what if" simulation
 - [ ] Layer 5: 3D view with real player movement (World Cup 2022 tracking data)
@@ -45,6 +77,17 @@ pip install -e .
 python -m matchreplay.ingest        # downloads about 4 GB of JSON, keeps 300 MB of tables
 python -m matchreplay.datareport
 pytest
+```
+
+The pipeline (Docker and Java 17 + Maven):
+
+```powershell
+mvn -f pipeline/pom.xml package               # builds the Flink job, runs the parity test
+docker compose up -d                          # broker + Flink cluster (web UI: localhost:8081)
+docker compose --profile submit run --rm submit
+pip install -r requirements-stream.txt
+python -m matchreplay.replay --match 3922238  # Nigeria-Cameroon, AFCON 2023, at 60x speed
+python -m matchreplay.verify --match 3922238
 ```
 
 ## Credits

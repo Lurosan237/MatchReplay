@@ -1,0 +1,60 @@
+# The whole pipeline on one machine:
+#   docker compose up -d                      # broker + Flink cluster
+#   docker compose run --rm submit            # build-free: submits pipeline/target/*.jar
+#   python -m matchreplay.replay --match 3922238
+#   python -m matchreplay.verify --match 3922238
+# Flink's web UI: http://localhost:8081
+services:
+  redpanda:
+    # Kafka-compatible broker in a single binary
+    image: redpandadata/redpanda:v24.2.18
+    command: >-
+      redpanda start --mode dev-container --smp 1 --memory 1G
+      --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+    ports: ["19092:19092"]
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 3s
+      retries: 40
+
+  jobmanager:
+    image: flink:1.20.1-java17
+    command: jobmanager
+    ports: ["8081:8081"]
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        state.checkpoints.dir: file:///checkpoints
+        restart-strategy.type: fixed-delay
+        restart-strategy.fixed-delay.attempts: 20
+        restart-strategy.fixed-delay.delay: 3 s
+        heartbeat.interval: 2000
+        heartbeat.timeout: 10000
+    volumes: ["checkpoints:/checkpoints"]
+
+  taskmanager:
+    image: flink:1.20.1-java17
+    command: taskmanager
+    depends_on: [jobmanager]
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        state.checkpoints.dir: file:///checkpoints
+        heartbeat.interval: 2000
+        heartbeat.timeout: 10000
+    volumes: ["checkpoints:/checkpoints"]
+
+  submit:
+    image: flink:1.20.1-java17
+    profiles: [submit]
+    depends_on:
+      redpanda: {condition: service_healthy}
+      jobmanager: {condition: service_started}
+    volumes: ["./pipeline/target:/job:ro"]
+    entrypoint: ["flink", "run", "-d", "-m", "jobmanager:8081", "/job/matchreplay-pipeline-0.1.0.jar",
+                 "--bootstrap", "redpanda:9092", "--checkpoint-ms", "5000"]
+
+volumes:
+  checkpoints:
