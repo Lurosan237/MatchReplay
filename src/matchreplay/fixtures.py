@@ -3,7 +3,7 @@
     python -m matchreplay.fixtures
 
 For each match below, writes to pipeline/src/test/resources/fixtures/:
-    <match>.input.jsonl.gz      the match's events in the order a chaotic feed delivers them
+    <match>.input.jsonl.gz      the match's events as a chaotic feed delivers them, then the end marker
     <match>.expected.jsonl.gz   the snapshots the reference computes from them
 
 The Flink job must turn the first file into the second, exactly.
@@ -15,7 +15,7 @@ import gzip
 import json
 
 from matchreplay.paths import ROOT
-from matchreplay.stream import Chaos, chaos, messages, reference_snapshots
+from matchreplay.stream import Chaos, chaos, end_marker, messages, reference_snapshots
 
 FIXTURES = ROOT / "pipeline" / "src" / "test" / "resources" / "fixtures"
 MATCHES = {
@@ -34,7 +34,8 @@ def write(path, rows) -> None:
 def main() -> None:
     FIXTURES.mkdir(parents=True, exist_ok=True)
     for match_id, label in MATCHES.items():
-        delivered = chaos(messages(match_id), CHAOS)
+        msgs = messages(match_id)
+        delivered = chaos(msgs, CHAOS) + [end_marker(msgs)]
         expected = reference_snapshots(delivered)
         write(FIXTURES / f"{match_id}.input.jsonl.gz", delivered)
         write(FIXTURES / f"{match_id}.expected.jsonl.gz", expected)

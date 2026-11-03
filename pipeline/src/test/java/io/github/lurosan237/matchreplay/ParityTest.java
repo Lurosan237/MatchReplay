@@ -45,9 +45,8 @@ class ParityTest {
     static List<String> run(List<MatchEvent> events, long maxDelayMs, boolean late) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
-        DataStream<MatchEvent> stream = env.fromData(events)
-                .assignTimestampsAndWatermarks(ReplayJob.watermarksPerEvent(maxDelayMs));
-        SingleOutputStreamOperator<String> state = ReplayJob.liveState(stream);
+        DataStream<MatchEvent> stream = env.fromData(events);
+        SingleOutputStreamOperator<String> state = ReplayJob.liveState(stream, maxDelayMs);
         DataStream<String> wanted = late ? state.getSideOutput(LiveMatchState.LATE) : state;
         List<String> out = new ArrayList<>();
         try (CloseableIterator<String> it = wanted.executeAndCollect()) {
@@ -96,6 +95,35 @@ class ParityTest {
         assertEquals(expected.size(), actual.size(), "number of snapshots");
         for (int i = 0; i < expected.size(); i++) {
             assertSameJson(JSON.readTree(expected.get(i)), JSON.readTree(actual.get(i)), "snapshot " + i);
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    void matchesAreIndependentOfEachOther() throws Exception {
+        // One match after another, then two at once: every match starts at minute 0, and neither
+        // may make the other's events look late
+        List<MatchEvent> a = input(3922238L);
+        List<MatchEvent> b = input(3922242L);
+        List<MatchEvent> sequential = new ArrayList<>(a);
+        sequential.addAll(b);
+        List<MatchEvent> interleaved = new ArrayList<>();
+        for (int i = 0; i < Math.max(a.size(), b.size()); i++) {
+            if (i < a.size()) interleaved.add(a.get(i));
+            if (i < b.size()) interleaved.add(b.get(i));
+        }
+        for (List<MatchEvent> events : List.of(sequential, interleaved)) {
+            List<String> actual = run(events, 10_000, false);
+            for (long matchId : new long[] {3922238L, 3922242L}) {
+                List<String> expected = lines(matchId + ".expected.jsonl.gz");
+                List<String> mine = new ArrayList<>();
+                for (String json : actual) {
+                    if (JSON.readTree(json).get("match_id").asLong() == matchId) mine.add(json);
+                }
+                assertEquals(expected.size(), mine.size(), "snapshots of " + matchId);
+                for (int i = 0; i < expected.size(); i++) {
+                    assertSameJson(JSON.readTree(expected.get(i)), JSON.readTree(mine.get(i)), matchId + " snapshot " + i);
+                }
+            }
         }
     }
 
