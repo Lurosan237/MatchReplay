@@ -215,14 +215,14 @@ def competition_ids(comp: Competition, catalogue: list[dict]) -> tuple[int, int]
     raise KeyError(f"{comp.name} {comp.season} is not in StatsBomb's open data")
 
 
-def ingest(comp: Competition, catalogue: list[dict], workers: int = 8) -> dict:
+def ingest(comp: Competition, catalogue: list[dict], workers: int = 8, with_360: bool = True) -> dict:
     cid, sid = competition_ids(comp, catalogue)
     matches = fetch(f"matches/{cid}/{sid}.json")
 
     def one(m):
         mid = m["match_id"]
         events = fetch(f"events/{mid}.json")
-        frames = fetch(f"three-sixty/{mid}.json")
+        frames = fetch(f"three-sixty/{mid}.json") if with_360 else None
         lineups = fetch(f"lineups/{mid}.json")
         return mid, events, frames or [], lineups
 
@@ -251,11 +251,12 @@ def ingest(comp: Competition, catalogue: list[dict], workers: int = 8) -> dict:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", nargs="*", choices=list(BY_KEY), help="competition keys (default: all)")
+    parser.add_argument("--no-360", action="store_true", help="skip the 360 freeze frames (the biggest download)")
     args = parser.parse_args(argv)
     catalogue = fetch("competitions.json")
     for key in args.only or list(BY_KEY):
         started = time.perf_counter()
-        summary = ingest(BY_KEY[key], catalogue)
+        summary = ingest(BY_KEY[key], catalogue, with_360=not args.no_360)
         print(f"{summary['competition']:<26} {summary['matches']:>3} matches  {summary['events']:>8,} events  "
               f"{summary['matches_with_360']:>3} with 360 frames  ({time.perf_counter() - started:.0f}s)")
 

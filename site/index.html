@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MatchReplay</title>
+  <meta name="description" content="Real football matches replayed as if they were live, with live numbers from a streaming pipeline.">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="./"><span class="dot"></span>MatchReplay</a>
+      <nav><a href="#matches">Matches</a><a href="#how">How it works</a><a href="https://github.com/Lurosan237/MatchReplay">Code</a></nav>
+    </header>
+
+    <section class="hero">
+      <div class="badges"><span class="badge replay">Replay of real data</span><span class="badge" id="count">558 matches</span><span class="badge">12 competitions</span></div>
+      <h1>Real matches, <em>played again</em> as if they were live.</h1>
+      <p>Pick a match: every pass, shot and card comes back in order, and the live numbers (score, expected
+        goals, momentum) update the way a streaming pipeline computes them during a real broadcast.</p>
+    </section>
+
+    <div class="section-title"><h2>Cameroon's road</h2><span>start here</span></div>
+    <div class="story" id="story"></div>
+
+    <div class="section-title" id="matches"><h2>All matches</h2><input class="search" id="search" type="search" placeholder="Find a team…" aria-label="Find a team"></div>
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <div class="grid" id="grid"></div>
+
+    <div class="section-title" id="how"><h2>How it works</h2></div>
+    <p class="how">
+      <b>The data</b> is Hudl StatsBomb's open event data: every on-ball action of 558 matches, from AFCON 2023 to
+      the World Cups. <b>The pipeline</b> (Java, Apache Flink, a Kafka-compatible broker) receives each match the way a
+      real feed would deliver it, with events late, out of order or twice, and keeps the live numbers right anyway;
+      it is tested against a simple reference, including with a server killed in the middle of a match. <b>This page</b>
+      replays the same numbers in your browser, no server needed. Coming next: live win probability, "what if this
+      shot had gone in?", and the World Cup 2022 in 3D from real player tracking.
+    </p>
+
+    <footer>
+      Data: <a href="https://github.com/statsbomb/open-data">Hudl StatsBomb open data</a>. A student portfolio project,
+      not affiliated with any competition, club or data provider.
+    </footer>
+  </div>
+  <script type="module" src="js/index.js"></script>
+</body>
+</html>

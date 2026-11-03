@@ -26,6 +26,23 @@ jobs:
       # Tests that need the downloaded matches skip themselves; the pipeline fixtures are committed
       - run: pytest -q
 
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r requirements.txt && pip install -e .
+      # The replay model, on every AFCON 2023 match: final scores, goals, timeline, clock
+      - run: python -m matchreplay.ingest --only afcon2023 --no-360
+      - run: python -m matchreplay.web_export --only afcon2023
+      - run: npm test --prefix site
+
   pipeline:
     runs-on: ubuntu-latest
     steps:

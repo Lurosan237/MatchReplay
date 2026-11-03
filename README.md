@@ -4,8 +4,8 @@ Real football matches replayed as live data streams: live win probability, "what
 of any moment, and a 3D view of the match. Showcase: the Africa Cup of Nations 2023, including
 Cameroon's four matches.
 
-> **Status: work in progress.** Layers 1 (data) and 2 (streaming pipeline) are done. See the
-> roadmap below.
+> **Status: work in progress.** Layers 1 (data), 2 (streaming pipeline) and 3 (the 2D replay in
+> the browser) are done. See the roadmap below.
 
 ## Data
 
@@ -59,12 +59,37 @@ the events in perfect order: it is the oracle.
   the middle of the match** and restarted. Both must come out identical to the reference
   (they do: 615/615 and 919/919 snapshots, the job restored from its last checkpoint).
 
+## The replay in the browser
+
+`site/` is a static website: pick any of the 558 matches and it plays again as if it were live.
+The ball moves from action to action on a 2D pitch, passes and carries leave short trails, every
+shot stays on the pitch sized by its expected goals, and the side panel shows the live numbers:
+score, xG, shots, share of passes, box entries, cards, an xG-over-time chart and the match feed.
+Under the pitch, a timeline shows momentum (home above the line, away below) and the goals; click
+or drag it to jump. Speeds from real time to 240x, and "next goal".
+
+The numbers are the pipeline's own snapshots (the same reference the Flink job is tested against),
+so the page needs no server and is published on GitHub Pages. Its data files are generated in the
+Pages workflow from StatsBomb's open data (`python -m matchreplay.web_export`), never committed.
+
+**Live mode.** With the pipeline running, `python -m matchreplay.gateway` reads what the feed
+delivered (`match-events`) and what the Flink job committed (`match-state`, read_committed) and
+pushes both to browsers over WebSockets. `match.html?id=<match>&live=ws://localhost:8765` then
+draws the match as it streams, late events landing in their right place. A browser that connects
+mid-match first gets the story so far, then live messages, in order and never twice. The
+end-to-end test checks that the gateway serves the crashed-and-recovered match down to its final
+snapshot.
+
+Tests: `npm test --prefix site` replays every AFCON 2023 match in the page's own model (final
+scores, goals in the feed, timeline, clock, ball path); `tests/test_gateway.py` covers the gateway.
+
 ## Roadmap
 
 - [x] Layer 1: ingest 12 competitions, typed tables, data report
 - [x] Layer 2: streaming replay pipeline (Java, Apache Flink, Kafka-compatible broker), parity
       and crash-recovery tests
-- [ ] Layer 3: 2D pitch view in the browser
+- [x] Layer 3: 2D replay in the browser, published as a static site, plus a live mode over
+      WebSockets
 - [ ] Layer 4: live win probability and "what if" simulation
 - [ ] Layer 5: 3D view with real player movement (World Cup 2022 tracking data)
 - [ ] Layer 6: reconstructed movement for the other competitions
@@ -93,6 +118,21 @@ docker compose --profile submit run --rm submit
 pip install -r requirements-stream.txt
 python -m matchreplay.replay --match 3922238  # Nigeria-Cameroon, AFCON 2023, at 60x speed
 python -m matchreplay.verify --match 3922238
+```
+
+The website, locally:
+
+```powershell
+python -m matchreplay.web_export --only afcon2023 wc2022   # or no option: all 558 matches
+python -m http.server -d site 8000                          # then open localhost:8000
+```
+
+And live, with the pipeline above running:
+
+```powershell
+python -m matchreplay.gateway                                # ws://localhost:8765
+# open localhost:8000/match.html?id=3922242&live=ws://localhost:8765
+python -m matchreplay.replay --match 3922242                 # watch it arrive
 ```
 
 ## Credits

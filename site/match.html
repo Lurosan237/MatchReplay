@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Match replay</title>
+  <meta name="description" content="A real football match replayed as if it were live, with the live numbers a streaming pipeline computes.">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="./"><span class="dot"></span>MatchReplay</a>
+      <nav><a href="./">All matches</a><a href="https://github.com/Lurosan237/MatchReplay">Code</a></nav>
+    </header>
+
+    <section class="scoreboard" aria-live="polite">
+      <div class="team home"><span class="swatch home"></span><span id="home">Home</span></div>
+      <div class="score">
+        <div class="digits" id="score">0 - 0</div>
+        <div class="clock"><span class="live">●</span> <span id="clock">00:00</span> · <span id="period">1st half</span></div>
+        <div class="pens" id="pens"></div>
+      </div>
+      <div class="team away"><span id="away">Away</span><span class="swatch away"></span></div>
+    </section>
+    <div class="subtitle" id="subtitle"></div>
+
+    <div class="controls">
+      <button class="btn primary" id="play">▶ Play</button>
+      <div class="speeds" id="speeds" role="group" aria-label="Speed">
+        <button data-speed="1">1×</button><button data-speed="5">5×</button><button data-speed="20" aria-pressed="true">20×</button><button data-speed="60">60×</button><button data-speed="240">240×</button>
+      </div>
+      <button class="btn" id="next-goal" title="Jump to the next goal">Next goal ⏭</button>
+      <span class="spacer"></span>
+      <label><input type="checkbox" id="show-shots" checked> Shot map</label>
+      <label><input type="checkbox" id="show-trails" checked> Passing trails</label>
+    </div>
+
+    <div class="stage">
+      <div class="pitch-box">
+        <canvas id="pitch" aria-label="The pitch, with the ball and the latest actions"></canvas>
+        <div class="banner" id="banner"></div>
+      </div>
+      <aside class="side">
+        <div class="panel">
+          <h3>Live numbers</h3>
+          <div id="stats"></div>
+        </div>
+        <div class="panel">
+          <h3>Expected goals over time</h3>
+          <canvas class="spark" id="xg"></canvas>
+          <div class="legend"><span id="xg-home"></span><span id="xg-away"></span></div>
+        </div>
+        <div class="panel">
+          <h3>Match feed</h3>
+          <div class="feed" id="feed"></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="timeline" id="timeline" title="Click or drag to jump; the shaded area is momentum">
+      <canvas id="timeline-canvas"></canvas>
+    </div>
+
+    <p class="how">
+      <b>What you are watching.</b> Every action of this match, replayed in order from the real event data
+      (Hudl StatsBomb open data). The ball moves between the recorded actions; the players themselves are not
+      shown here, because event data says where the ball was, not where everyone stood. The numbers on the right
+      are the snapshots the streaming pipeline emits every 5 seconds of match time (score, shots, expected goals,
+      passes, box entries, momentum), the same ones the Java/Flink job is tested against.
+      <b>Momentum</b> on the timeline adds up recent threat (the xG of shots, plus a little for every entry into
+      the box), forgetting half of it every 5 minutes: above the line the home team is pushing, below it the away team.
+    </p>
+  </div>
+  <script type="module" src="js/match.js"></script>
+</body>
+</html>

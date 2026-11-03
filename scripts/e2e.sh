@@ -2,7 +2,8 @@
 # End-to-end test, run by CI: a real broker and a real Flink cluster.
 #   1. a match replayed at high speed must come out identical to the reference;
 #   2. a second match, with the task manager killed in the middle and restarted, must too:
-#      the job recovers from its last checkpoint without losing or double-counting anything.
+#      the job recovers from its last checkpoint without losing or double-counting anything;
+#   3. the WebSocket gateway serves that match to a browser-like client, down to the final snapshot.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -28,4 +29,11 @@ sleep 5
 docker compose start taskmanager
 wait $REPLAY
 python -m matchreplay.verify --match 3922242 --idle 120
+echo "== 3. The live gateway hands the pipeline's output to browsers"
+python -m matchreplay.gateway --bootstrap localhost:19092 > gateway.log 2>&1 &
+GATEWAY=$!
+wait_for "grep -q 'gateway on' gateway.log"
+python scripts/check_gateway.py 3922242
+kill $GATEWAY
+
 curl -s localhost:8081/jobs/overview | python -c "import json,sys; j=json.load(sys.stdin)['jobs'][0]; print('job', j['state'])"
