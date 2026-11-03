@@ -53,7 +53,7 @@
       <canvas id="scene" aria-label="The match in 3D"></canvas>
       <div class="banner" id="banner"></div>
       <div class="loading" id="loading">Loading tracking…</div>
-      <div class="badge-src"><span class="badge replay">Real tracking · every frame</span></div>
+      <div class="badge-src"><span class="badge replay">Real tracking · every frame</span> <span class="badge" id="ball-src">ball tracked</span></div>
     </div>
 
     <div class="timeline" id="timeline" title="Click or drag to jump">
@@ -63,8 +63,10 @@
     <p class="how">
       <b>What you are watching.</b> Every player and the ball, where they really were, 30 times a second: the
       World Cup 2022 optical tracking data released for free by <a href="https://www.blog.fc.pff.com/blog/pff-fc-release-2022-world-cup-data">PFF FC</a>.
-      Nothing here is animated or guessed: between two frames (33 milliseconds apart) positions are interpolated
-      for smooth playback, that's all. The score, clock, match feed and win probability come from the event data
+      Player positions are the tracking itself (lightly smoothed), and each player's running, walking and turning
+      is driven by how they actually moved. When the broadcast cameras lose the ball (replays, the ball out of
+      play), it is rebuilt from the event data: every touch names the player, and we know where that player was;
+      the corner badge says which you are seeing. The score, clock, match feed and win probability come from the event data
       (Hudl StatsBomb), lined up with the tracking on the shots both providers recorded. Drag to orbit in
       <b>Free</b> camera; <b>¼×</b> is slow motion.
     </p>

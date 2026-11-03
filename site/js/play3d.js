@@ -89,24 +89,26 @@ function buildPitch(L, W) {
 }
 
 function crowdTexture() {
-  // A packed crowd seen from the pitch: rows of small heads and shirts in many colours
+  // A packed crowd in the shade of the roof: soft, dark, lit a little more towards the front
   const c = document.createElement("canvas");
-  c.width = 1024; c.height = 256;
+  c.width = 512; c.height = 128;
   const g = c.getContext("2d");
-  g.fillStyle = "#1a2320"; g.fillRect(0, 0, 1024, 256);
-  const colours = ["#d8d8d8", "#2b2b2b", "#b33a3a", "#e0b84a", "#3a6bb3", "#2f8a4a", "#7d4a9a", "#c7c2b0", "#8a5a3a"];
-  for (let y = 6; y < 256; y += 9) {
-    for (let x = (y / 9) % 2 ? 3 : 7; x < 1024; x += 8) {
-      if (Math.random() < 0.08) continue;
+  g.fillStyle = "#121916"; g.fillRect(0, 0, 512, 128);
+  const colours = ["#3d413e", "#2a2e2c", "#4a332f", "#4d4636", "#2d3846", "#2e3f33", "#45433e"];
+  for (let y = 4; y < 128; y += 5) {
+    for (let x = (y / 5) % 2 ? 1 : 3; x < 512; x += 4) {
+      if (Math.random() < 0.2) continue;
       g.fillStyle = colours[(Math.random() * colours.length) | 0];
-      g.fillRect(x, y, 5, 5);
-      g.fillStyle = "#6b5040";
-      g.fillRect(x + 1, y - 3, 3, 3);
+      g.fillRect(x, y, 3, 3);
     }
   }
+  const shade = g.createLinearGradient(0, 0, 0, 128);
+  shade.addColorStop(0, "rgba(8,12,10,0.65)"); shade.addColorStop(1, "rgba(8,12,10,0)");
+  g.fillStyle = shade; g.fillRect(0, 0, 512, 128);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
   return tex;
 }
 
@@ -135,12 +137,6 @@ function stands(L, W) {
   side(L + 40, W / 2 + 6, Math.PI);
   side(W + 40, L / 2 + 6, Math.PI / 2);
   side(W + 40, L / 2 + 6, -Math.PI / 2);
-  for (const [x, z] of [[-L / 2 - 8, -W / 2 - 8], [L / 2 + 8, -W / 2 - 8], [-L / 2 - 8, W / 2 + 8], [L / 2 + 8, W / 2 + 8]]) {
-    const light = new THREE.Mesh(new THREE.BoxGeometry(5, 2, 0.5), new THREE.MeshBasicMaterial({ color: 0xfff6dc }));
-    light.position.set(x, 32, z);
-    light.lookAt(0, 0, 0);
-    scene.add(light);
-  }
 }
 
 function label(text, color = "#ffffff", bg = "rgba(11,18,16,0.75)") {
@@ -239,7 +235,7 @@ function resize() {
 
 function setPlaying(on) { state.playing = on; $("play").textContent = on ? "❚❚ Pause" : "▶ Play"; }
 function seek(t) {
-  state.t = t; state.trail = []; track.prefetch(t, 3);
+  state.t = t; state.trail = []; state.lastPlaced = null; track.prefetch(t, 3);
   for (const p of [...homeMeshes, ...awayMeshes]) p.reset();
   ball.userData.last = null;
 }
@@ -268,7 +264,8 @@ function frame(now) {
     for (const h of match.highlights) if (h.t > before && h.t <= state.t && (h.kind === "goal" || h.kind === "owngoal")) flash(`⚽ ${h.text.replace("GOAL! ", "")}`, "goal");
     track.prefetch(state.t);
   }
-  if (f && !f.gap) place(f, dt);
+  if (f && !f.gap) place(f, Math.max(0, state.t - (state.lastPlaced ?? state.t)));
+  state.lastPlaced = state.t;
   for (const p of [...homeMeshes, ...awayMeshes]) if (f && f.gap) p.hide();
   moveCamera(f && !f.gap ? f : null, dt);
   hud();
@@ -277,18 +274,25 @@ function frame(now) {
 }
 
 // Data: x along the pitch (home attacks +x), y across. Scene: x, z = -y, up is y.
-function place(f, dt) {
+// Data: x along the pitch (home attacks +x), y across. Scene: x, z = -y, up is y.
+const VEL_MS = 200;                                   // velocity from the positions 0.2 s apart
+
+function place(f, dtMatch) {
+  const before = track.frame(state.t - VEL_MS);
   const bx = f.ball ? f.ball[0] : ball.position.x, bz = f.ball ? -f.ball[1] : ball.position.z;
-  const set = (players, pts) => players.forEach((p, j) => {
+  const set = (players, pts, prev) => players.forEach((p, j) => {
     const pt = pts[j];
     if (!pt) { p.hide(); return; }
-    p.update(pt[0], -pt[1], state.t, bx, bz, dt);
+    const q = prev && !prev.gap && prev[j] ? prev[j] : pt;
+    const vx = (pt[0] - q[0]) / (VEL_MS / 1000), vz = -(pt[1] - q[1]) / (VEL_MS / 1000);
+    p.update(pt[0], -pt[1], vx, vz, dtMatch, bx, bz);
   });
-  set(homeMeshes, f.home);
-  set(awayMeshes, f.away);
+  set(homeMeshes, f.home, before && before.home);
+  set(awayMeshes, f.away, before && before.away);
   if (f.ball) {
     ball.visible = true;
     ball.roll(f.ball[0], Math.max(0.16, f.ball[2] || 0), -f.ball[1]);
+    $("ball-src").textContent = f.rebuilt ? "ball rebuilt from the events" : "ball tracked";
     if ($("show-trails").checked) {
       state.trail.push(ball.position.clone());
       if (state.trail.length > 45) state.trail.shift();
@@ -309,8 +313,10 @@ function moveCamera(f, dt) {
     camTarget.set(0, 0, 4);
     camPos.set(0, 112, 52);
   } else {
-    camTarget.lerp(b, 1 - Math.exp(-dt / 250));
-    camPos.set(camTarget.x - 11, 5.5, camTarget.z + 10);
+    // follow the ball along the ground; a high ball only tilts the view a little
+    const ground = new THREE.Vector3(b.x, Math.min(b.y, 3) * 0.3, b.z);
+    camTarget.lerp(ground, 1 - Math.exp(-dt / 200));
+    camPos.set(camTarget.x - 15, 10, camTarget.z + 15);
   }
   camera.position.lerp(camPos, 1 - Math.exp(-dt / 300));
   camera.lookAt(camTarget);

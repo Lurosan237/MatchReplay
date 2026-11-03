@@ -114,18 +114,24 @@ most likely final scores, and one simulated story of how it could have gone.
 
 All 64 matches of the 2022 World Cup play in 3D in the browser (`site/play3d.html`): every player
 and the ball where they really were, **every frame, 29.97 times a second**, from the optical
-tracking data PFF FC released for free. Nothing is animated or guessed; positions are only
-interpolated between frames 33 ms apart, for smooth playback. Players are jointed, kitted figures
-(team colours from PFF's metadata, keepers in their own colour, numbers on the back) animated from
-the tracking itself: each player's real speed sets standing, jogging or sprinting, stride and arm
-swing follow the ground actually covered, and the body leans into the run and turns the way the
-player moves. A crowd, floodlights and a panelled ball that rolls with its distance. Four cameras (broadcast, tactical,
+tracking data PFF FC released for free. Players are jointed, kitted figures
+(team colours from PFF's metadata, keepers in their own colour, numbers on the back) driven by the
+tracking itself: each player's velocity, measured from their positions 0.2 s apart, sets standing,
+jogging or sprinting, the stride follows the ground actually covered, and the body leans and turns
+with the run, identically at any playback speed. A crowd and a panelled ball that rolls with its
+distance. Four cameras (broadcast, tactical,
 following the ball, free orbit), slow motion, player names, a ball trail. The score, clock, feed
 and win probability come from the event data, so the 3D view and the 2D replay tell the same match.
 
 How it gets there:
 - `pff_download` fetches the data from PFF's shared folder; `tracking` turns each match's 1.4 GB
   of JSON into arrays (positions in centimetres per shirt number, every frame).
+- The data is cleaned on the way: a one-second running median removes the tracker's rare jumps
+  (a median keeps a real run or turn exactly), and the ball is never missing. PFF's tracking
+  loses the ball in about 4 frames out of 10 (replays, ball out of play, off camera); there it is
+  rebuilt from PFF's own events, since every touch names the player and that player's position is
+  known, and moved in a straight line between touches, or held during a stoppage. Every frame
+  carries a flag saying whether the ball is tracked or rebuilt, and the page shows it.
 - `tracking_web` finds the StatsBomb match each PFF game is (same day, closest team names), turns
   every frame so the home team attacks to the right as in the 2D view, and puts both providers on
   one clock: per period, the median gap between the shots both recorded (under a second, on the

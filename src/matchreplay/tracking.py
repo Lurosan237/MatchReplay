@@ -14,7 +14,8 @@ Output, data/tracking/<game>.npz:
     home, away (F, J, 2) x, y in centimetres per shirt number (J = every shirt that appears);
                          MISSING when the player is not on the pitch
     home_shirts, away_shirts (J,)
-    ball     (F, 3)      x, y, z in centimetres
+    ball     (F, 3)      x, y, z in centimetres (PFF's smoothed ball, else its raw detection when seen; MISSING
+                         when neither: replays, ball out of play, lost by the cameras)
 Coordinates: pitch centre is (0, 0), x along the length, y across, in metres x 100. Teams swap
 ends at half time exactly as on the day; metadata says who started on the left.
 Every frame is kept, all 29.97 per second: no downsampling.
@@ -76,6 +77,9 @@ def convert(path: Path, out_dir: Path = TRACKING) -> dict:
             if i % KEEP_EVERY:
                 continue
             b = d.get("ballsSmoothed") or {}
+            if b.get("x") is None:                     # smoothing left a gap: a raw detection the cameras saw
+                b = next((r for r in d.get("balls") or [] if r.get("x") is not None
+                          and r.get("visibility") == "VISIBLE"), {})
             clock.append(ms)
             period.append(p)
             home.append(team(d.get("homePlayersSmoothed") or d.get("homePlayers")))

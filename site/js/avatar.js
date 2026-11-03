@@ -108,56 +108,52 @@ export class Footballer {
     scene.add(this.root);
   }
 
-  /** Forget the previous position (after a jump in time), so no fake sprint is computed. */
-  reset() { this.last = null; this.speed = 0; }
+  /** Forget the motion state (after a jump in time). */
+  reset() { this.speed = 0; this.ready = false; }
 
   /**
-   * Move to (x, z) at match time t (ms); look at (lookX, lookZ) when standing.
-   * Speed comes from the real positions, smoothed over a few frames.
+   * Place the player at (x, z), moving at (vx, vz) metres per second as measured in the tracking
+   * data itself; dtMatch is the match time since the last update (ms), so the animation is the
+   * same at any playback speed. When nearly still, the player turns to face the ball.
    */
-  update(x, z, t, lookX, lookZ, dtRender) {
+  update(x, z, vx, vz, dtMatch, lookX, lookZ) {
     this.root.visible = true;
-    let dx = 0, dz = 0, moved = 0;
-    if (this.last && t > this.last.t) {
-      dx = x - this.last.x; dz = z - this.last.z;
-      moved = Math.hypot(dx, dz);
-      const v = moved / ((t - this.last.t) / 1000);
-      if (v < 12) this.speed += (v - this.speed) * Math.min(1, (t - this.last.t) / 250);   // ignore teleports
-      else moved = 0;
-    }
-    if (!this.last || t !== this.last.t) this.last = { x, z, t };
     this.root.position.set(x, 0, z);
+    const raw = Math.hypot(vx, vz);
+    const v = Math.min(raw, 9);                                   // tracker estimates off camera can glide too fast
+    const k = this.ready ? 1 - Math.exp(-dtMatch / 180) : 1;
+    this.speed += (v - this.speed) * k;
 
-    // Face where the player runs; when nearly still, turn towards the ball
-    const want = this.speed > 1.2 && moved > 0 ? Math.atan2(dx, dz) : Math.atan2(lookX - x, lookZ - z);
+    const want = this.speed > 1.0 ? Math.atan2(vx, vz) : Math.atan2(lookX - x, lookZ - z);
+    if (!this.ready) this.heading = want;
     let d = want - this.heading;
     d = Math.atan2(Math.sin(d), Math.cos(d));
-    this.heading += d * Math.min(1, dtRender / (this.speed > 1.2 ? 120 : 400));
+    this.heading += d * (1 - Math.exp(-dtMatch / (this.speed > 1.0 ? 140 : 450)));
     this.root.rotation.y = this.heading;
+    this.ready = true;
 
-    // Gait: one stride cycle every ~2 strides of ground covered; stride grows with speed
-    const effort = Math.min(this.speed / 7.5, 1);
-    const stride = 0.85 + 0.75 * effort;
-    if (moved > 0) this.phase += (moved / stride) * Math.PI;
-    else if (this.speed < 0.3) this.phase += 0;
+    // Gait: the cycle advances with the ground covered (one cycle = two steps); steps lengthen with speed
+    const effort = Math.min(this.speed / 7, 1);
+    const step = 0.75 + 0.95 * effort;
+    this.phase += (this.speed * dtMatch / 1000 / step) * Math.PI;
+    const moving = Math.min(1, Math.max(0, (this.speed - 0.35) / 0.6)); // fade the gait in and out
     const s = Math.sin(this.phase), c = Math.cos(this.phase);
-    const swing = this.speed < 0.25 ? 0 : 0.18 + 0.72 * effort;
+    const swing = (0.22 + 0.7 * effort) * moving;
 
     for (const leg of this.legs) {
-      const p = leg.side < 0 ? s : -s;
+      const p = leg.side < 0 ? s : -s, forward = leg.side < 0 ? c : -c;
       leg.hip.rotation.x = -p * swing;
-      const back = leg.side < 0 ? c : -c;                       // knee folds as the leg swings back
-      leg.knee.rotation.x = Math.max(0, back) * (0.25 + 1.25 * effort) * (swing > 0 ? 1 : 0) + 0.05;
+      leg.knee.rotation.x = 0.06 + Math.max(0, forward) * (0.35 + 1.2 * effort) * moving;  // folds on the swing forward
     }
     for (const arm of this.arms) {
       const p = arm.side < 0 ? -s : s;
-      arm.shoulder.rotation.x = -p * (0.1 + 0.75 * effort) * (swing > 0 ? 1 : 0.2);
-      arm.shoulder.rotation.z = arm.side * (0.08 + 0.06 * effort);
-      arm.elbow.rotation.x = -(0.25 + 1.0 * effort);
+      arm.shoulder.rotation.x = -p * (0.12 + 0.7 * effort) * moving;
+      arm.shoulder.rotation.z = arm.side * (0.1 + 0.05 * effort);
+      arm.elbow.rotation.x = -(0.3 + 1.0 * effort * moving);
     }
-    this.spine.rotation.x = 0.04 + 0.2 * effort;                // lean into the run
-    this.head.rotation.x = -0.12 * effort;                      // eyes stay up
-    this.body.position.y = swing > 0 ? Math.abs(c) * 0.045 * (0.4 + effort) : Math.sin(t / 700) * 0.004;
+    this.spine.rotation.x = 0.03 + 0.2 * effort * moving;        // lean into the run
+    this.head.rotation.x = -0.12 * effort * moving;               // eyes stay up
+    this.body.position.y = Math.abs(c) * 0.05 * (0.3 + effort) * moving;
   }
 
   hide() { this.root.visible = false; this.reset(); }

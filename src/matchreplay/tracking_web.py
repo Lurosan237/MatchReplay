@@ -11,7 +11,9 @@ Per match, site/tracking/<StatsBomb match id>/:
     meta.json          teams, kits, shirts and names, pitch size, chunk list
     <n>.bin.gz         one minute of play, every frame (29.97 per second), gzipped:
                          int32 frames, int32 time[frames], then int16 series, each one frame after
-                         another: ball x, y, z, then x and y of every home shirt, then every away shirt
+                         another: ball x, y, z and a rebuilt flag (1 where the cameras had lost the
+                         ball and it was rebuilt from the events, see fill_ball), then x and y of
+                         every home shirt, then every away shirt
                        time is StatsBomb event time (stream.event_time_ms), so the 3D view and the
                        2D replay's score, feed and win probability line up. Positions are centimetres
                        from the centre spot, the home team always attacking to the right (+x).
@@ -97,6 +99,88 @@ def keepers(game: int, team_id: str) -> list[str]:
             if r["team"]["id"] == team_id and r.get("positionGroupType") == "GK"]
 
 
+def runs(mask: np.ndarray) -> list[tuple[int, int]]:
+    """[start, end) of every run of True."""
+    edges = np.diff(np.concatenate([[0], mask.astype(np.int8), [0]]))
+    return list(zip(np.flatnonzero(edges == 1), np.flatnonzero(edges == -1), strict=True))
+
+
+def clean_players(arr: np.ndarray, median_frames: int = 31, mean_frames: int = 5) -> np.ndarray:
+    """Remove the tracker's glitches without blurring real movement.
+
+    A running median over one second (31 frames) drops the short bursts where an estimate jumps
+    metres away and back (a median keeps a steady run or turn exactly, with no lag); a short moving
+    average then takes off the remaining jitter. Each stretch a player is on the pitch is filtered
+    on its own, so nothing leaks across a substitution.
+    """
+    from numpy.lib.stride_tricks import sliding_window_view
+
+    out = arr.copy()
+    for j in range(arr.shape[1]):
+        for start, end in runs(arr[:, j, 0] != MISSING):
+            if end - start < median_frames:
+                continue
+            for k in (0, 1):
+                v = arr[start:end, j, k].astype(np.float64)
+                h = median_frames // 2
+                padded = np.concatenate([np.full(h, v[0]), v, np.full(h, v[-1])])
+                med = np.median(sliding_window_view(padded, median_frames), axis=1)
+                m = mean_frames // 2
+                padded = np.concatenate([np.full(m, med[0]), med, np.full(m, med[-1])])
+                out[start:end, j, k] = np.round(np.convolve(padded, np.ones(mean_frames) / mean_frames, "valid"))
+    return out
+
+
+def fill_ball(ball: np.ndarray, home: np.ndarray, away: np.ndarray, home_shirts: list, away_shirts: list,
+              pff_events: list[dict], period: np.ndarray, clock: np.ndarray, home_team: str,
+              hold_over_ms: int = 6000) -> tuple[np.ndarray, np.ndarray]:
+    """The ball where the cameras lost it (replays, out of play): rebuilt from PFF's own events.
+
+    Every on-the-ball event names the player and the frame, and we know where that player was:
+    that is where the ball was. Between two known points the ball moves in a straight line; if they
+    are more than `hold_over_ms` apart (a stoppage), it waits at the first and moves in the last
+    1.5 seconds. Returns the ball and a flag per frame: 1 where it is rebuilt, 0 where tracked.
+    """
+    known = ball[:, 0] != MISSING
+    ax, ay, az = ball[:, 0].astype(np.float64), ball[:, 1].astype(np.float64), ball[:, 2].astype(np.float64)
+    az[az == MISSING] = 0
+    anchor = known.copy()
+    key = period.astype(np.int64) * 10**9 + clock
+    cols = ({s: j for j, s in enumerate(home_shirts)}, {s: j for j, s in enumerate(away_shirts)})
+    for e in pff_events:
+        if e.get("type") != "OTB" or not e.get("shirt"):
+            continue
+        i = int(np.clip(np.searchsorted(key, e["period"] * 10**9 + e["clock_ms"]), 0, len(key) - 1))
+        if known[max(0, i - 5):i + 6].any():
+            continue                                   # the cameras had the ball here anyway
+        team = 0 if e.get("team") == home_team else 1
+        j = cols[team].get(str(e["shirt"]))
+        arr = home if team == 0 else away
+        if j is None or arr[i, j, 0] == MISSING:
+            continue
+        ax[i], ay[i], az[i] = arr[i, j, 0], arr[i, j, 1], 0
+        anchor[i] = True
+    idx = np.flatnonzero(anchor)
+    if len(idx) == 0:
+        return ball, np.ones(len(ball), dtype=np.int16)
+    t = (period.astype(np.int64) * 10**7 + clock).astype(np.float64)  # frame times, gaps between periods kept apart
+    out = ball.copy()
+    for a, b in zip(idx[:-1], idx[1:], strict=True):
+        if b - a <= 1:
+            continue
+        span = t[b] - t[a]
+        f = (t[a + 1:b] - t[a]) / span
+        if span > hold_over_ms:                        # a stoppage: wait, then move late
+            f = np.clip((t[a + 1:b] - (t[b] - 1500)) / 1500, 0, 1)
+        for k, v in enumerate((ax, ay, az)):
+            out[a + 1:b, k] = np.round(v[a] + (v[b] - v[a]) * f)
+    out[:idx[0]] = [ax[idx[0]], ay[idx[0]], az[idx[0]]]
+    out[idx[-1] + 1:] = [ax[idx[-1]], ay[idx[-1]], az[idx[-1]]]
+    for i in idx:                                      # the anchors themselves
+        out[i] = [ax[i], ay[i], az[i]]
+    return out, (~known).astype(np.int16)
+
+
 def export(game: int, matches: pd.DataFrame, events: pd.DataFrame, out_root: Path = OUT) -> dict:
     meta = pff_meta(game)
     sb_id, swapped = statsbomb_match(meta, matches)
@@ -115,8 +199,9 @@ def export(game: int, matches: pd.DataFrame, events: pd.DataFrame, out_root: Pat
     left_et = meta["homeTeamStartLeft"] if left_et is None else left_et
     first_half = (period == 1) | (period == 3)
     home_on_left = np.where(period <= 2, first_half == bool(meta["homeTeamStartLeft"]), first_half == bool(left_et))
-    home, away, ball = z["home"].copy(), z["away"].copy(), z["ball"].copy()
-    hs, as_ = list(z["home_shirts"]), list(z["away_shirts"])
+    hs, as_ = [str(v) for v in z["home_shirts"]], [str(v) for v in z["away_shirts"]]
+    home, away = clean_players(z["home"]), clean_players(z["away"])
+    ball, rebuilt = fill_ball(z["ball"], home, away, hs, as_, pff_events, period, clock, meta["homeTeam"]["name"])
     hk, ak = meta["homeTeamKit"], meta["awayTeamKit"]
     hn, an = names(game, meta["homeTeam"]["id"]), names(game, meta["awayTeam"]["id"])
     hg, ag = keepers(game, meta["homeTeam"]["id"]), keepers(game, meta["awayTeam"]["id"])
@@ -132,6 +217,7 @@ def export(game: int, matches: pd.DataFrame, events: pd.DataFrame, out_root: Pat
         arr[flip] = np.where(present[flip], -arr[flip], arr[flip])
     ball_present = ball != MISSING
     ball[flip, :2] = np.where(ball_present[flip, :2], -ball[flip, :2], ball[flip, :2])
+    ball = np.concatenate([ball, rebuilt[:, None]], axis=1)       # 4th ball series: 1 = rebuilt
 
     order = np.argsort(t, kind="stable")
     t, home, away, ball = t[order], home[order], away[order], ball[order]
@@ -141,7 +227,7 @@ def export(game: int, matches: pd.DataFrame, events: pd.DataFrame, out_root: Pat
     chunks, total = [], 0
     for c in np.unique(chunk_of):
         idx = np.flatnonzero(chunk_of == c)
-        series = [delta(ball[idx, k]) for k in range(3)]
+        series = [delta(ball[idx, k]) for k in range(4)]
         for arr in (home, away):
             for j in range(arr.shape[1]):
                 series += [delta(arr[idx, j, 0]), delta(arr[idx, j, 1])]
@@ -163,7 +249,8 @@ def export(game: int, matches: pd.DataFrame, events: pd.DataFrame, out_root: Pat
         "home_names": {str(s): hn.get(str(s)) for s in hs}, "away_names": {str(s): an.get(str(s)) for s in as_},
         "home_keepers": hg, "away_keepers": ag,
         "pitch": {"length": pitch["length"], "width": pitch["width"]}, "fps": meta.get("fps", 29.97),
-        "chunk_ms": CHUNK_MS, "chunks": chunks, "clock_offsets_ms": offsets,
+        "chunk_ms": CHUNK_MS, "ball_series": 4, "ball_rebuilt_share": round(float(rebuilt.mean()), 3),
+        "chunks": chunks, "clock_offsets_ms": offsets,
         "source": "PFF FC World Cup 2022 tracking data",
     }, ensure_ascii=False, separators=(",", ":")))
     return {"game": game, "match_id": sb_id, "home": hteam, "away": ateam, "swapped": swapped, "chunks": len(chunks),

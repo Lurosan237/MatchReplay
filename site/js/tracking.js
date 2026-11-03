@@ -80,10 +80,12 @@ export class Tracking {
       return (b === MISSING ? a : a + (b - a) * f) / 100;
     };
     const xy = (s) => { const x = at(s), y = at(s + 1); return x == null || y == null ? null : [x, y]; };
+    const nb = this.meta.ball_series || 3;          // x, y, z (+ a "rebuilt" flag in newer files)
     const bx = at(0), by = at(1), bz = at(2);
+    const rebuilt = nb > 3 ? c.series[3][lo] === 1 : false;
     const home = [], away = [];
-    for (let j = 0; j < this.nh; j++) home.push(xy(3 + 2 * j));
-    for (let j = 0; j < this.na; j++) away.push(xy(3 + 2 * this.nh + 2 * j));
-    return { ball: bx == null || by == null ? null : [bx, by, bz ?? 0], home, away };
+    for (let j = 0; j < this.nh; j++) home.push(xy(nb + 2 * j));
+    for (let j = 0; j < this.na; j++) away.push(xy(nb + 2 * this.nh + 2 * j));
+    return { ball: bx == null || by == null ? null : [bx, by, bz ?? 0], rebuilt, home, away };
   }
 }
