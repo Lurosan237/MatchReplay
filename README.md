@@ -17,7 +17,7 @@ coordinates.
 
 Where players stood:
 - every shot in every match carries a freeze frame of the players around it;
-- 357 matches also have "360" frames: every visible player at almost every event.
+- 358 matches also have "360" frames: every visible player at almost every event.
 
 **Every final score is rebuilt from the event stream and matches the official result, for all
 558 matches** ([data report](reports/data.md)). Goals come from scoring shots and own goals;
