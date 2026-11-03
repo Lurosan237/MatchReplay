@@ -17,7 +17,7 @@ Output, data/tracking/<game>.npz:
     ball     (F, 3)      x, y, z in centimetres
 Coordinates: pitch centre is (0, 0), x along the length, y across, in metres x 100. Teams swap
 ends at half time exactly as on the day; metadata says who started on the left.
-Frames are kept at 10 per second (every third of 29.97); the views interpolate between them.
+Every frame is kept, all 29.97 per second: no downsampling.
 
 Plus data/tracking/<game>.events.json: PFF's own event stream, already synchronised to the
 frames (each event carries the clock of the frame it happened on).
@@ -38,7 +38,7 @@ from matchreplay.paths import DATA, RAW
 PFF = RAW / "pff"
 TRACKING = DATA / "tracking"
 MISSING = np.iinfo(np.int16).min
-KEEP_EVERY = 3
+KEEP_EVERY = 1
 
 
 def cm(v: float | None) -> int:
