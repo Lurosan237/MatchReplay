@@ -44,7 +44,7 @@ header.top nav a:hover { color: var(--text); }
 .badge { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
 .badge.replay { color: var(--accent); border-color: rgba(61, 220, 132, 0.4); }
 
-.section-title { display: flex; align-items: baseline; justify-content: space-between; margin: 34px 0 12px; }
+.section-title { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; justify-content: space-between; margin: 34px 0 12px; }
 .section-title h2 { margin: 0; font-size: 20px; }
 .section-title span { color: var(--muted); font-size: 14px; }
 
@@ -178,8 +178,12 @@ footer { border-top: 1px solid var(--line); padding: 20px 0 40px; color: var(--m
   .side { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 }
 @media (max-width: 520px) {
-  header.top nav { display: none; }
+  header.top nav { gap: 12px; font-size: 13px; }
+  header.top nav a[href^="https://github.com"], header.top nav a[href="#how"] { display: none; }
   .controls .spacer { display: none; }
+  .stage3d .badge-src { right: 6px; bottom: 6px; }
+  .stage3d .badge-src .badge { font-size: 9px; padding: 3px 6px; }
+  .stage3d #ball-src { display: none; }
 }
 
 /* ---------- 3D ---------- */

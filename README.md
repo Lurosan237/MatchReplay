@@ -1,12 +1,28 @@
-# Match Replay
+# MatchReplay
 
-Real football matches replayed as live data streams: live win probability, "what if" simulation
-of any moment, and the World Cup 2022 in 3D from real player tracking. Plus a Lab page for the
-technology alone.
+**Real football matches, played again as if they were live.** 558 matches from 12 competitions
+stream through a real-time pipeline, with live win probability, "what if" for any moment, and
+every match in 3D: the World Cup 2022 from real player tracking, every other match from
+movement reconstructed out of the event data.
 
-> **Status: work in progress.** Layers 1 to 6 are done: the data, the streaming pipeline, the 2D
-> replay in the browser, live win probability with "what if", and the World Cup 2022 in 3D from
-> real player tracking, and every other match in 3D from reconstructed movement. See the roadmap below.
+**[Open the live site](https://lurosan237.github.io/MatchReplay/)** ·
+[the Lab](https://lurosan237.github.io/MatchReplay/lab.html) (just the technology) ·
+[the World Cup final in 3D](https://lurosan237.github.io/MatchReplay/play3d.html?id=3869685)
+
+![The World Cup 2022 final in 3D, from real player tracking](docs/img/3d.jpg)
+
+| What | How | Proof |
+|---|---|---|
+| Live numbers from a messy feed | Java / Apache Flink job, a clock per match, exactly-once to a Kafka-compatible broker | Identical to a Python reference on every push, even with the server **killed mid-match** |
+| Live win probability | Per-team goal-rate model, played forward minute by minute; same model in Python, Java and the browser | Tested unseen on all 558 matches: beats score-and-clock (Brier 0.437 vs 0.446), well calibrated |
+| What if? | Flip a goal, a miss or a red card; re-run the rest; 5,000 simulated endings | |
+| World Cup 2022 in 3D | PFF's optical tracking, **every frame (30/s)**, 2.7 MB a match, ball rebuilt from events where cameras lost it | Two providers' clocks aligned within 2.4 s on all 64 matches |
+| Every other match in 3D | Formation model learned from tracking + 360 snapshots named by the Hungarian algorithm | **10.0 m** from reality on unseen matches (vs 23 m for a fixed formation) |
+
+<p>
+  <img src="docs/img/2d.jpg" alt="The 2D replay with live numbers and win probability" width="49%">
+  <img src="docs/img/lab.jpg" alt="The Lab: a messy feed through the streaming logic" width="49%">
+</p>
 
 ## Data
 
@@ -187,7 +203,7 @@ builds all of them (about 400 KB a match) and publishes them on the `reconstruct
   JavaScript (`site/js/streamlab.js`), tested like the real one: a messy feed must give exactly the
   perfect feed's numbers.
 
-## Roadmap
+## How it was built
 
 - [x] Layer 1: ingest 12 competitions, typed tables, data report
 - [x] Layer 2: streaming replay pipeline (Java, Apache Flink, Kafka-compatible broker), parity
@@ -198,7 +214,11 @@ builds all of them (about 400 KB a match) and publishes them on the `reconstruct
       simulation
 - [x] Layer 5: the World Cup 2022 in 3D, every frame of the real tracking data
 - [x] Layer 6: reconstructed movement for the other 494 matches, scored against real tracking
-- [ ] Layer 7: polish
+- [x] Layer 7: polish: phones, link previews, a frame-by-frame capture mode for demo videos
+      (`window.capture` in the 3D page), and a fix for 3D matches decided on penalties
+
+Possible next steps: team strength before kick-off in the win probability model (its weakest
+point is upsets, see the report), and reconstructed movement trained on more tracking data.
 
 ## Running it
 

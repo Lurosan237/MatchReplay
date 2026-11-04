@@ -127,7 +127,7 @@ async function runStream() {
     c.strokeStyle = css("--goal"); c.setLineDash([4, 4]); c.beginPath(); c.moveTo(0, yOf(allowed)); c.lineTo(w, yOf(allowed)); c.stroke(); c.setLineDash([]);
     c.fillStyle = css("--muted"); c.font = "11px ui-monospace, monospace";
     c.fillText(`waits ${(allowed / 1000).toFixed(1)} s`, 6, Math.max(12, yOf(allowed) - 5));
-    c.fillText("delay ↑   arrival time →", 6, h - 2 > 12 ? h - 2 : 12);
+    c.textAlign = "right"; c.fillText("↑ how late   arrival time →", w - 6, 12); c.textAlign = "left";
     for (const key in counters) counters[key] = 0;
     for (let i = 0; i < k; i++) {
       const d = log[i], x = ((d.arrival - t0) / Math.max(1, t1 - t0)) * (w - 8) + 4;

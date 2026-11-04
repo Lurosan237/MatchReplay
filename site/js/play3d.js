@@ -260,7 +260,9 @@ function flash(text, kind = "") {
 const camTarget = new THREE.Vector3(), camPos = new THREE.Vector3();
 
 function frame(now) {
-  const dt = state.last ? Math.min(100, now - state.last) : 0;
+  // Capture mode (for making videos on slow machines): one frame per tick(), each exactly 1/30 s
+  if (state.capture && !state.tick) { requestAnimationFrame(frame); return; }
+  const dt = state.capture ? 1000 / 30 : state.last ? Math.min(100, now - state.last) : 0;
   state.last = now;
   const f = track.frame(state.t);
   $("loading").style.display = f === null ? "grid" : "none";
@@ -279,10 +281,16 @@ function frame(now) {
   moveCamera(f && !f.gap ? f : null, dt);
   hud();
   renderer.render(scene, camera);
+  if (state.capture && state.tick) { const done = state.tick; state.tick = null; done(); }
   requestAnimationFrame(frame);
 }
 
-// Data: x along the pitch (home attacks +x), y across. Scene: x, z = -y, up is y.
+/** For recording a demo video frame by frame: capture.start(), then await capture.tick() per frame. */
+window.capture = {
+  start() { state.capture = true; },
+  tick() { return new Promise((resolve) => { state.tick = resolve; }); },
+};
+
 // Data: x along the pitch (home attacks +x), y across. Scene: x, z = -y, up is y.
 const VEL_MS = 200;                                   // velocity from the positions 0.2 s apart
 
@@ -365,7 +373,13 @@ function timeline(t) {
   const wp = model ? match.winProbs : null;
   if (wp) {
     c.beginPath();
-    match.snaps.time.forEach((st, i) => { const x = X(st), y = h - wp[i][0] * h; i ? c.lineTo(x, y) : c.moveTo(x, y); });
+    let drawing = false;                          // no win probability during a shoot-out: break the line there
+    match.snaps.time.forEach((st, i) => {
+      if (!wp[i]) { drawing = false; return; }
+      const x = X(st), y = h - wp[i][0] * h;
+      drawing ? c.lineTo(x, y) : c.moveTo(x, y);
+      drawing = true;
+    });
     c.strokeStyle = "rgba(242,245,243,0.7)"; c.lineWidth = 1.5; c.stroke();
   }
   for (const g of match.goals()) { c.fillStyle = "#ff5a4e"; c.beginPath(); c.arc(X(g.t), g.side === 0 ? 8 : h - 8, 4.5, 0, Math.PI * 2); c.fill(); }

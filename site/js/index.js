@@ -36,7 +36,8 @@ async function main() {
   const all = new Map(index.flatMap((g) => g.matches.map((m) => [m.id, { ...m, comp: g.name }])));
   $("count").textContent = `${all.size} matches`;
 
-  let current = index[0].key;
+  // open on the World Cup 2022: every match there plays in 3D from real tracking
+  let current = (index.find((g) => g.key === "wc2022") || index[0]).key;
   const render = () => {
     const q = $("search").value.trim().toLowerCase();
     const groups = q ? index : index.filter((g) => g.key === current);
