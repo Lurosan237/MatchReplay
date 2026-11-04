@@ -75,9 +75,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view tracking-data >/dev/null 2>&1 || gh release create tracking-data --title "World Cup 2022 tracking for the 3D view" \
+          # GitHub's release API sometimes answers 500: try a few times
+          for attempt in 1 2 3 4; do
+            (gh release view tracking-data >/dev/null 2>&1 || gh release create tracking-data --title "World Cup 2022 tracking for the 3D view" \
             --notes "Built by the Tracking workflow from PFF FC's free World Cup 2022 tracking data (https://www.blog.fc.pff.com/blog/pff-fc-release-2022-world-cup-data). Read by the website build."
-          gh release upload tracking-data tracking.tar --clobber
+            ) && gh release upload tracking-data tracking.tar --clobber && break
+            echo "retrying in 30 s"; sleep 30
+          done
+          gh release view tracking-data --json assets -q '.assets[].name' | grep -qx tracking.tar
       - name: Rebuild the website
         env:
           GH_TOKEN: ${{ github.token }}

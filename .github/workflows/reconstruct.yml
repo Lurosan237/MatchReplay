@@ -76,9 +76,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release view reconstructed-data >/dev/null 2>&1 || gh release create reconstructed-data --title "Reconstructed movement for the 3D view" \
+          # GitHub's release API sometimes answers 500: try a few times
+          for attempt in 1 2 3 4; do
+            (gh release view reconstructed-data >/dev/null 2>&1 || gh release create reconstructed-data --title "Reconstructed movement for the 3D view" \
             --notes "Built by the Reconstruct workflow from Hudl StatsBomb event and 360 data. Read by the website build."
-          gh release upload reconstructed-data reconstructed.tar --clobber
+            ) && gh release upload reconstructed-data reconstructed.tar --clobber && break
+            echo "retrying in 30 s"; sleep 30
+          done
+          gh release view reconstructed-data --json assets -q '.assets[].name' | grep -qx reconstructed.tar
       - name: Rebuild the website
         env:
           GH_TOKEN: ${{ github.token }}
