@@ -623,9 +623,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--export", nargs="*", help="competition keys to export (default: all but wc2022)")
     parser.add_argument("--out", type=Path, default=OUT)
     args = parser.parse_args(argv)
-    wc = sorted(int(m) for m in pd.read_parquet(MATCHES / "wc2022" / "matches.parquet")["match_id"])
-    train, test = wc[::2], wc[1::2]
     if args.fit or args.evaluate:
+        wc = sorted(int(m) for m in pd.read_parquet(MATCHES / "wc2022" / "matches.parquet")["match_id"])
+        train, test = wc[::2], wc[1::2]
         model = fit(train, args.tracking)
         print(f"formation model: {len(model.coef)} roles learned from {len(train)} matches")
         if args.evaluate:
