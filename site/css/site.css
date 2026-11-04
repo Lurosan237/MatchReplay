@@ -189,3 +189,4 @@ footer { border-top: 1px solid var(--line); padding: 20px 0 40px; color: var(--m
 .stage3d .badge-src { position: absolute; right: 12px; bottom: 12px; }
 .stage3d .badge-src .badge { background: rgba(11, 18, 16, 0.75); }
 .card .three { display: inline-block; font-family: var(--mono); font-size: 11px; color: var(--accent); border: 1px solid rgba(61, 220, 132, 0.4); border-radius: 999px; padding: 2px 7px; text-decoration: none; }
+.card .three.rec { color: var(--muted); border-color: var(--line); }

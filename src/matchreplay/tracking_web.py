@@ -181,6 +181,28 @@ def fill_ball(ball: np.ndarray, home: np.ndarray, away: np.ndarray, home_shirts:
     return out, (~known).astype(np.int16)
 
 
+def write_chunks(out: Path, t: np.ndarray, ball: np.ndarray, home: np.ndarray, away: np.ndarray
+                 ) -> tuple[list[dict], int]:
+    """One-minute chunks in the format above (ball: 4 series). Returns the chunk list and total bytes."""
+    out.mkdir(parents=True, exist_ok=True)
+    chunk_of = t // CHUNK_MS
+    chunks, total = [], 0
+    for c in np.unique(chunk_of):
+        idx = np.flatnonzero(chunk_of == c)
+        series = [delta(ball[idx, k]) for k in range(4)]
+        for arr in (home, away):
+            for j in range(arr.shape[1]):
+                series += [delta(arr[idx, j, 0]), delta(arr[idx, j, 1])]
+        tt = t[idx].astype(np.int32)
+        payload = (np.array([len(idx)], dtype="<i4").tobytes() + tt.astype("<i4").tobytes()
+                   + np.concatenate(series).astype("<i2").tobytes())
+        data = gzip.compress(payload, 6)
+        (out / f"{int(c)}.bin.gz").write_bytes(data)
+        total += len(data)
+        chunks.append({"n": int(c), "start": int(tt[0]), "end": int(tt[-1]), "frames": int(len(idx))})
+    return chunks, total
+
+
 def export(game: int, matches: pd.DataFrame, events: pd.DataFrame, out_root: Path = OUT) -> dict:
     meta = pff_meta(game)
     sb_id, swapped = statsbomb_match(meta, matches)
@@ -222,22 +244,7 @@ def export(game: int, matches: pd.DataFrame, events: pd.DataFrame, out_root: Pat
     order = np.argsort(t, kind="stable")
     t, home, away, ball = t[order], home[order], away[order], ball[order]
     out = out_root / str(sb_id)
-    out.mkdir(parents=True, exist_ok=True)
-    chunk_of = t // CHUNK_MS
-    chunks, total = [], 0
-    for c in np.unique(chunk_of):
-        idx = np.flatnonzero(chunk_of == c)
-        series = [delta(ball[idx, k]) for k in range(4)]
-        for arr in (home, away):
-            for j in range(arr.shape[1]):
-                series += [delta(arr[idx, j, 0]), delta(arr[idx, j, 1])]
-        tt = t[idx].astype(np.int32)
-        payload = (np.array([len(idx)], dtype="<i4").tobytes() + tt.astype("<i4").tobytes()
-                   + np.concatenate(series).astype("<i2").tobytes())
-        data = gzip.compress(payload, 6)
-        (out / f"{int(c)}.bin.gz").write_bytes(data)
-        total += len(data)
-        chunks.append({"n": int(c), "start": int(tt[0]), "end": int(tt[-1]), "frames": int(len(idx))})
+    chunks, total = write_chunks(out, t, ball, home, away)
 
     kit = lambda k: {"primary": k.get("primaryColor"), "text": k.get("primaryTextColor"),  # noqa: E731
                      "secondary": k.get("secondaryColor")}

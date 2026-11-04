@@ -1,0 +1,86 @@
+name: Reconstruct
+
+# Reconstructed player movement for every match without tracking (python -m matchreplay.reconstruct),
+# from StatsBomb's event and 360 data and the formation model in models/formation.json. Published as
+# one archive on the "reconstructed-data" release, which the website build unpacks.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/reconstruct.yml", "src/matchreplay/reconstruct.py", "models/formation.json"]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: reconstruct
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        competitions:
+          - afcon2023 wc2018
+          - euro2024 euro2020 copa2024
+          - wwc2023 wwc2019
+          - weuro2025 weuro2022
+          - bundesliga2324 ligue12223
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt && pip install -e .
+      - uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: statsbomb-360-${{ matrix.competitions }}-${{ hashFiles('src/matchreplay/ingest.py') }}
+      # With the 360 frames this time: they are what the reconstruction is corrected by
+      - run: python -m matchreplay.ingest --only ${{ matrix.competitions }}
+      - run: python -m matchreplay.reconstruct --export ${{ matrix.competitions }} --out reconstructed-out
+      - run: rm -rf data/matches
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reconstructed-${{ strategy.job-index }}
+          path: reconstructed-out
+          retention-days: 3
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: reconstructed-*
+          path: shards
+      - name: Merge
+        run: |
+          mkdir -p reconstructed
+          for d in shards/*/; do cp -r "$d"/. reconstructed/; done
+          python3 - <<'PY'
+          import json, pathlib
+          root = pathlib.Path("reconstructed")
+          rows = [json.loads(p.read_text()) for p in sorted(root.glob("*/meta.json"))]
+          (root / "index.json").write_text(json.dumps([{"match_id": r["match_id"], "home": r["home"], "away": r["away"]} for r in rows]))
+          print(len(rows), "matches")
+          PY
+          du -sh reconstructed
+          tar -cf reconstructed.tar reconstructed
+      - name: Publish on the reconstructed-data release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view reconstructed-data >/dev/null 2>&1 || gh release create reconstructed-data --title "Reconstructed movement for the 3D view" \
+            --notes "Built by the Reconstruct workflow from Hudl StatsBomb event and 360 data. Read by the website build."
+          gh release upload reconstructed-data reconstructed.tar --clobber
+      - name: Rebuild the website
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run pages.yml

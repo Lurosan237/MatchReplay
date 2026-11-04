@@ -4,9 +4,9 @@ Real football matches replayed as live data streams: live win probability, "what
 of any moment, and the World Cup 2022 in 3D from real player tracking. Plus a Lab page for the
 technology alone.
 
-> **Status: work in progress.** Layers 1 to 5 are done: the data, the streaming pipeline, the 2D
+> **Status: work in progress.** Layers 1 to 6 are done: the data, the streaming pipeline, the 2D
 > replay in the browser, live win probability with "what if", and the World Cup 2022 in 3D from
-> real player tracking. See the roadmap below.
+> real player tracking, and every other match in 3D from reconstructed movement. See the roadmap below.
 
 ## Data
 
@@ -141,6 +141,38 @@ How it gets there:
   the `tracking-data` release, which the website build unpacks. Nothing from PFF is committed; the
   workflow needs the folder id from PFF's welcome email as the `PFF_FOLDER` secret.
 
+## Every other match in 3D: reconstructed movement
+
+The other 494 matches have no tracking, only events: where the ball was and who had it, plus, in
+358 of them, StatsBomb's "360" snapshots of the visible players (positions without names). From
+that, `reconstruct.py` rebuilds every player's path:
+
+1. **A formation model learned from real tracking.** For each role (left back, defensive
+   midfielder...), where a player stands given where the ball is and who has it: a small
+   regression fitted on the World Cup 2022 tracking (`models/formation.json`).
+2. **Names for the anonymous 360 players.** Points are linked into short trails across consecutive
+   snapshots; a trail passing through a named moment (the player on the ball, the goalkeepers)
+   keeps that name, and every other point is matched to the players expected nearby with the
+   Hungarian algorithm. Matching and positions are refined over three rounds.
+3. **Fusion.** The formation model, shifted with the team's observed block, then corrected towards
+   each player's own sightings, the correction fading with time (Gaussian kernel); no one runs
+   faster than 8.5 m/s.
+
+**How close it gets**, scored against the real tracking on 32 World Cup matches the model never
+saw ([full report](reports/reconstruction.md)):
+
+| Method | Mean error | Within 5 m |
+|---|---|---|
+| Formation only | 23.0 m | 6% |
+| Formation moving with the ball | 11.7 m | 19% |
+| + the player on the ball | 10.9 m | 23% |
+| + the 360 snapshots (full reconstruction) | 10.0 m | 30% |
+
+Closest near the ball (8.3 m for players within 15 m of it), where the data sees most; players far
+from the ball are rarely seen and stay near what the formation model predicts. The 3D view labels
+these matches "Reconstructed movement" and explains what that means. The **Reconstruct** workflow
+builds all of them (about 400 KB a match) and publishes them on the `reconstructed-data` release.
+
 ## The Lab
 
 `site/lab.html` is for people who only want the technology, without watching a match:
@@ -165,7 +197,7 @@ How it gets there:
 - [x] Layer 4: live win probability (Python, Flink and browser, tested to agree) and "what if"
       simulation
 - [x] Layer 5: the World Cup 2022 in 3D, every frame of the real tracking data
-- [ ] Layer 6: reconstructed movement for the other competitions
+- [x] Layer 6: reconstructed movement for the other 494 matches, scored against real tracking
 - [ ] Layer 7: polish
 
 ## Running it

@@ -40,6 +40,8 @@ jobs:
         run: |
           if gh release download tracking-data -p tracking.tar; then tar -xf tracking.tar -C site && rm tracking.tar
           else echo "No tracking published yet: the site goes out without the 3D view"; fi
+          if gh release download reconstructed-data -p reconstructed.tar; then tar -xf reconstructed.tar -C site && rm reconstructed.tar
+          else echo "No reconstructed movement published yet"; fi
       - run: rm -rf site/test site/package.json
       - uses: actions/upload-pages-artifact@v3
         with:

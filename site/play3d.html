@@ -53,14 +53,14 @@
       <canvas id="scene" aria-label="The match in 3D"></canvas>
       <div class="banner" id="banner"></div>
       <div class="loading" id="loading">Loading tracking…</div>
-      <div class="badge-src"><span class="badge replay">Real tracking · every frame</span> <span class="badge" id="ball-src">ball tracked</span></div>
+      <div class="badge-src"><span class="badge replay" id="src-kind">Real tracking · every frame</span> <span class="badge" id="ball-src">ball tracked</span></div>
     </div>
 
     <div class="timeline" id="timeline" title="Click or drag to jump">
       <canvas id="timeline-canvas"></canvas>
     </div>
 
-    <p class="how">
+    <p class="how" id="how-tracked">
       <b>What you are watching.</b> Every player and the ball, where they really were, 30 times a second: the
       World Cup 2022 optical tracking data released for free by <a href="https://www.blog.fc.pff.com/blog/pff-fc-release-2022-world-cup-data">PFF FC</a>.
       Player positions are the tracking itself (lightly smoothed), and each player's running, walking and turning
@@ -69,6 +69,15 @@
       the corner badge says which you are seeing. The score, clock, match feed and win probability come from the event data
       (Hudl StatsBomb), lined up with the tracking on the shots both providers recorded. Drag to orbit in
       <b>Free</b> camera; <b>¼×</b> is slow motion.
+    </p>
+    <p class="how" id="how-reconstructed" hidden>
+      <b>What you are watching.</b> No tracking exists for this match, so this is a <b>reconstruction</b>: every player's
+      path rebuilt from the event data (Hudl StatsBomb). A formation model learned from real World Cup 2022 tracking
+      places each player by role, given where the ball is and who has it; it is then corrected by everything the data
+      saw: the player on the ball at each action and, for most matches, the "360" snapshots of the visible players,
+      matched to names by an assignment algorithm. Tested on World Cup matches it never saw, against the real tracking:
+      see <a href="https://github.com/Lurosan237/MatchReplay/blob/main/reports/reconstruction.md">how close it gets</a>.
+      The ball moves between the recorded actions. Team colours are the site's, not the real kits.
     </p>
   </div>
   <script type="module" src="js/play3d.js"></script>

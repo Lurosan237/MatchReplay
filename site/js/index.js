@@ -3,6 +3,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 let tracked = new Set();   // matches with real player tracking (World Cup 2022): playable in 3D
+let rebuilt = new Set();   // the others, with reconstructed movement
 
 function card(m, extra = "", cls = "") {
   const [h, a] = m.score;
@@ -10,7 +11,8 @@ function card(m, extra = "", cls = "") {
   const homeWon = h > a || (h === a && m.shootout && m.shootout[0] > m.shootout[1]);
   const awayWon = a > h || (h === a && m.shootout && m.shootout[1] > m.shootout[0]);
   return `<a class="card ${cls}" href="match.html?id=${m.id}">
-    <div class="meta"><span>${esc(m.stage)}${tracked.has(m.id) ? ` <span class="three" data-href="play3d.html?id=${m.id}" title="Real player tracking: watch it in 3D">3D</span>` : ""}</span><span>${esc(m.date)}${pens ? " · " + pens : ""}</span></div>
+    <div class="meta"><span>${esc(m.stage)}${tracked.has(m.id) ? ` <span class="three" data-href="play3d.html?id=${m.id}" title="Real player tracking: watch it in 3D">3D</span>`
+      : rebuilt.has(m.id) ? ` <span class="three rec" data-href="play3d.html?id=${m.id}" title="Reconstructed movement: watch it in 3D">3D</span>` : ""}</span><span>${esc(m.date)}${pens ? " · " + pens : ""}</span></div>
     <div class="teams">
       <span class="${homeWon ? "won" : ""}">${esc(m.home)}</span><b>${h}</b>
       <span class="${awayWon ? "won" : ""}">${esc(m.away)}</span><b>${a}</b>
@@ -23,6 +25,10 @@ async function main() {
     const r = await fetch("tracking/index.json");
     if (r.ok) tracked = new Set((await r.json()).map((t) => t.match_id));
   } catch { /* no tracking published: 2D only */ }
+  try {
+    const r = await fetch("reconstructed/index.json");
+    if (r.ok) rebuilt = new Set((await r.json()).map((t) => t.match_id));
+  } catch { /* none published */ }
   document.addEventListener("click", (e) => {
     const chip = e.target.closest(".three");
     if (chip) { e.preventDefault(); location.href = chip.dataset.href; }

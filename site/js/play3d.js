@@ -177,7 +177,16 @@ async function load() {
   if (!res.ok) throw new Error(`no match ${id}`);
   match = new Match(await res.json(), model);
   track = await Tracking.load(`tracking/${id}`);
-  if (!track) throw new Error("this match has no tracking data (only the World Cup 2022 does)");
+  const reconstructed = !track;
+  if (!track) track = await Tracking.load(`reconstructed/${id}`);
+  if (!track) throw new Error("no 3D data for this match yet");
+  if (reconstructed) {
+    $("src-kind").textContent = "Reconstructed movement";
+    $("src-kind").title = "No tracking exists for this match: positions are rebuilt from the event data";
+    $("ball-src").hidden = true;
+    $("how-tracked").hidden = true;
+    $("how-reconstructed").hidden = false;
+  }
   const m = match.meta, tm = track.meta;
   document.title = `${m.home} v ${m.away} in 3D · MatchReplay`;
   $("home").textContent = m.home; $("away").textContent = m.away;
